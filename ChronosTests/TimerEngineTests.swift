@@ -455,12 +455,17 @@ final class TimerEngineTests: XCTestCase {
     }()
 
     private func makeEngine(calendar: Calendar = TimerEngineTests.newYorkCalendar) -> TimerEngine {
-        TimerEngine(
+        // The archive stays inside the temp directory: a test that crosses a
+        // day boundary must never write into the real Documents folder.
+        let archive = directory.appendingPathComponent("Archive", isDirectory: true)
+        let fallback = directory.appendingPathComponent("Fallback", isDirectory: true)
+        return TimerEngine(
             clock: fakeNow.clock,
             projectStore: ProjectStore(fileURL: projectsURL),
             sessionLog: SessionLog(fileURL: sessionsURL),
             stateStore: AppStateStore(fileURL: stateURL),
-            calendar: calendar
+            calendar: calendar,
+            archiveLocation: ArchiveLocation(folder: { _ in archive }, fallbackFolder: { fallback })
         )
     }
 

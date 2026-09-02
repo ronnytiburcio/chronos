@@ -38,10 +38,40 @@ struct ArchiveWriter: Sendable {
     // MARK: - Writing
 
     func write(day: ArchivedDay) throws {
-        try append(summaryRows(for: day), to: summaryFile, header: Self.summaryHeader)
-        try append(sessionRows(for: day), to: sessionsFile, header: Self.sessionsHeader)
+        // Everything that fails for a permissions reason fails here, before a
+        // single row is appended, so a retry into the fallback folder never
+        // files half a day twice.
+        try prepare()
+        try append(summaryRows(for: day), to: summaryFile)
+        try append(sessionRows(for: day), to: sessionsFile)
         guard writesMarkdownNotes else { return }
         try writeMarkdown(for: day)
+    }
+
+    /// Creates the folder and the CSV files (with their headers) and checks
+    /// they can be written to.
+    private func prepare() throws {
+        let manager = FileManager.default
+        try manager.createDirectory(at: folder, withIntermediateDirectories: true)
+        try ensureHeader(Self.summaryHeader, at: summaryFile)
+        try ensureHeader(Self.sessionsHeader, at: sessionsFile)
+        if writesMarkdownNotes {
+            try manager.createDirectory(at: dailyNotesDirectory, withIntermediateDirectories: true)
+        }
+        for url in [summaryFile, sessionsFile] where !manager.isWritableFile(atPath: url.path) {
+            throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: url.path])
+        }
+    }
+
+    /// Writes the header when the file is missing — or present but empty, as
+    /// a placeholder left by a sync client or a curious user would be.
+    private func ensureHeader(_ header: String, at url: URL) throws {
+        let manager = FileManager.default
+        if manager.fileExists(atPath: url.path) {
+            let size = (try manager.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?.intValue ?? 0
+            guard size == 0 else { return }
+        }
+        try Data(header.utf8).write(to: url, options: .atomic)
     }
 
     private static let summaryHeader = "date,project,seconds,hours\n"
@@ -66,12 +96,17 @@ struct ArchiveWriter: Sendable {
         // is not cheap, and a day can hold a lot of sessions.
         let formatter = timestampFormatter()
         return day.sessions.reduce(into: "") { rows, session in
+            // The timestamps print whole seconds, so the seconds column is
+            // the difference of those same whole seconds: the three columns
+            // always reconcile.
+            let startSecond = floor(session.start.timeIntervalSince1970)
+            let endSecond = floor(session.end.timeIntervalSince1970)
             rows += CSV.row([
                 day.dateString,
                 session.projectName,
                 formatter.string(from: session.start),
                 formatter.string(from: session.end),
-                String(Int(max(0, session.end.timeIntervalSince(session.start)))),
+                String(Int(max(0, endSecond - startSecond))),
             ])
         }
     }
@@ -84,7 +119,6 @@ struct ArchiveWriter: Sendable {
             text += "| \(total.name) | \(TimeFormatting.hoursMinutes(total.seconds)) |\n"
         }
 
-        try FileManager.default.createDirectory(at: dailyNotesDirectory, withIntermediateDirectories: true)
         // Whole file, replaced: a second reset on the same day rewrites the
         // note rather than stacking two tables in it.
         try Data(text.utf8).write(to: markdownFile(for: day.dateString), options: .atomic)
@@ -92,14 +126,8 @@ struct ArchiveWriter: Sendable {
 
     // MARK: - Appending
 
-    private func append(_ text: String, to url: URL, header: String) throws {
+    private func append(_ text: String, to url: URL) throws {
         guard !text.isEmpty else { return }
-        let manager = FileManager.default
-        try manager.createDirectory(at: folder, withIntermediateDirectories: true)
-        if !manager.fileExists(atPath: url.path) {
-            try Data(header.utf8).write(to: url, options: .atomic)
-        }
-
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }
         try handle.seekToEnd()

@@ -16,7 +16,6 @@ import AppKit
 @MainActor
 final class RolloverScheduler {
     private let engine: TimerEngine
-    private let clock: Clock
     private var timer: Timer?
     private let target = SchedulerTarget()
     private let observers = ObserverTokens()
@@ -25,9 +24,8 @@ final class RolloverScheduler {
     /// coalesce the timer instead of waking the CPU precisely at 04:00.
     private static let tolerance: TimeInterval = 5
 
-    init(engine: TimerEngine, clock: Clock = .system) {
+    init(engine: TimerEngine) {
         self.engine = engine
-        self.clock = clock
         target.scheduler = self
 
         observe(NSWorkspace.shared.notificationCenter, name: NSWorkspace.didWakeNotification)
@@ -37,8 +35,14 @@ final class RolloverScheduler {
 
     /// Runs every rollover that is due and re-arms for the next boundary.
     func catchUp() {
-        engine.performRolloversIfNeeded(now: clock.now())
+        engine.performRolloversIfNeeded(now: engine.clock.now())
         arm()
+    }
+
+    /// Re-aims the timer. Call after the rollover time setting changes; the
+    /// armed timer keeps its old fire date otherwise.
+    func rearm() {
+        catchUp()
     }
 
     /// Points the timer at the next boundary after the day currently on

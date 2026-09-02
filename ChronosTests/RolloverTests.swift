@@ -165,6 +165,56 @@ final class RolloverTests: XCTestCase {
         XCTAssertTrue(try read(sessionsFileCSV).contains("2025-09-01,Client Work,2025-09-02T00:00:00-04:00,2025-09-02T04:00:00-04:00,14400"))
     }
 
+    func testResetWithTheClockBehindTheDayStartDoesNothing() throws {
+        try seedState(lastRollover: dayStart)
+        let engine = makeEngine()
+        let project = try XCTUnwrap(engine.addProject(named: "Client Work"))
+        engine.start(projectID: project.id)
+        // The clock is corrected to before the day on screen even began.
+        fakeNow.advance(by: -6 * 3600)
+
+        engine.resetDay()
+
+        XCTAssertNotNil(engine.openSession, "the running session is left alone")
+        XCTAssertNil(engine.sessions.last?.end)
+        XCTAssertEqual(engine.lastRollover, dayStart)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: archiveFolder.path))
+    }
+
+    func testAnEmptyExistingSummaryFileStillGetsItsHeader() throws {
+        try FileManager.default.createDirectory(at: archiveFolder, withIntermediateDirectories: true)
+        try Data().write(to: summaryFile)
+        try seedState(lastRollover: dayStart)
+
+        try runOneHourDay(named: "Client Work")
+
+        XCTAssertTrue(try read(summaryFile).hasPrefix("date,project,seconds,hours\n"))
+    }
+
+    func testASessionEndingAfterTheBoundaryIsClampedInBothFiles() throws {
+        let project = try seedProject(named: "Client Work")
+        // A hand-edited log line that runs past the boundary.
+        try seedSession(
+            project.id,
+            from: dayStart.addingTimeInterval(3600),
+            to: dayStart.addingTimeInterval(Self.day + 3600)
+        )
+        try seedState(lastRollover: dayStart)
+        fakeNow = FakeClock(dayStart.addingTimeInterval(Self.day + 5 * 3600))
+
+        _ = makeEngine()
+
+        XCTAssertEqual(
+            try read(summaryFile),
+            """
+            date,project,seconds,hours
+            2025-09-02,Client Work,82800,23.00
+
+            """
+        )
+        XCTAssertTrue(try read(sessionsFileCSV).contains("2025-09-03T04:00:00-04:00,82800"))
+    }
+
     func testManualResetFilesAnOverdueDayBeforeResettingTheCurrentOne() throws {
         // Restart on, so the project keeps running into the new day and the
         // reset has something to file for it.

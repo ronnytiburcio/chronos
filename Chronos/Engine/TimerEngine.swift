@@ -42,7 +42,8 @@ final class TimerEngine {
     /// well, which is the normal case.
     private(set) var lastWarning: String?
 
-    @ObservationIgnored private let clock: Clock
+    /// Shared with ``RolloverScheduler`` so both keep the same idea of now.
+    @ObservationIgnored let clock: Clock
     @ObservationIgnored private let projectStore: ProjectStore
     @ObservationIgnored private let sessionLog: SessionLog
     @ObservationIgnored private let stateStore: AppStateStore
@@ -304,6 +305,10 @@ final class TimerEngine {
         // Any day that already ended is filed first, under its own date; the
         // reset only ever closes out the day that is actually on screen.
         performRolloversIfNeeded(now: instant)
+        // Nothing to reset until the clock is past the day's start: a
+        // zero-width window would file nothing and cut the running session
+        // down to nothing.
+        guard instant > lastRollover else { return }
         performRollover(at: instant)
         now = instant
     }
@@ -372,9 +377,13 @@ final class TimerEngine {
 
         // Archived projects are included when they have time on them: the
         // archive records what happened, not what the panel shows.
+        // Measured to the boundary at most, exactly as the sessions.csv rows
+        // are, so the two files can never disagree about a day.
         let totals: [ProjectTotal] = projects.compactMap { project in
             let seconds = daySessions.reduce(0.0) { running, session in
-                session.projectID == project.id ? running + session.duration(asOf: boundary) : running
+                guard session.projectID == project.id else { return running }
+                let end = min(session.end ?? boundary, boundary)
+                return running + max(0, end.timeIntervalSince(session.start))
             }
             return seconds > 0 ? ProjectTotal(name: project.name, seconds: seconds) : nil
         }
