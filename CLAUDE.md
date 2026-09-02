@@ -24,11 +24,12 @@ Run the built app: `open "$(xcodebuild -project Chronos.xcodeproj -scheme Chrono
 ## Layout
 ```
 Chronos/App       entry, AppDelegate, MenuBarController
-Chronos/Window    DesktopPanel (NSPanel subclass), PanelController, FirstMouseHostingView, DragHandleView, WindowPlacement
+Chronos/Window    DesktopPanel (NSPanel subclass), PanelController, FirstMouseHostingView, DragHandleView, PanelKeyWindow, WindowPlacement
 Chronos/Model     Project, Session, Settings, TrackingDay
 Chronos/Engine    TimerEngine, RolloverEngine, Clock (injectable now())
 Chronos/Storage   AppPaths, JSONFile, AppStateStore (state.json), ProjectStore (projects.json), SessionLog (sessions.jsonl), ArchiveWriter, Exporter
-Chronos/UI        Palette, SwiftUI views + BoltShape
+Chronos/UI        Palette, ProjectColor, TimeFormatting, PanelLayout, EscapeKeyMonitor,
+                  PanelView (root) -> HeaderView / ProjectRowView (+ RowMenu) / FooterView, + BoltShape
 Chronos/Resources Assets.xcassets, generated Info.plist
 ChronosTests      XCTest
 Scripts           render-icons.swift, make-dmg.sh
@@ -61,6 +62,12 @@ Scripts           render-icons.swift, make-dmg.sh
 - Tests for `@MainActor` types override `setUp() async throws` / `tearDown() async throws`, not the `WithError` variants — only the async hooks inherit the class's actor isolation, otherwise every shared property is a concurrency warning.
 - `WindowPlacement` validates a saved frame against full screen frames (the user may park the panel under the Dock) and uses the main screen's `visibleFrame` only for first-launch placement.
 - All JSON goes through `JSONFile` (atomic `Data.write`, ISO-8601 dates, sorted keys). Colors come from `Palette` in `Chronos/UI/Palette.swift`.
+- **Panel height is `PanelLayout.height(rowCount:)`, pure arithmetic, not measured layout.** `PanelController` sizes the window from it at launch, and `PanelView` reports a new height through `onDesiredHeightChange` when `engine.visibleProjects.count` changes. The view's constants (`headerHeight`, `footerHeight`, `rowHeight`) are applied with `.frame(height:)` on the matching views, so the arithmetic and the drawing cannot drift — change one and change the other. Resizing keeps the panel's **top** edge fixed (Cocoa origin is bottom-left, so `origin.y` moves by the delta) and never animates. Note the asymmetry across launches: `WindowPlacement` restores the saved *origin* and applies the new size, so a relaunch with a different project count keeps the bottom-left corner, not the top.
+- **Buttons in the panel must be `.buttonStyle(.plain)` over a `.contentShape(Rectangle())`.** Bordered/prominent styles want focus before they act, which costs a click in a panel that never activates. Plain buttons fire on the first mouse-down (with `FirstMouseHostingView`'s `acceptsFirstMouse`).
+- **Inline text fields need `await PanelKeyWindow.makeKey()` before setting focus.** The panel is `becomesKeyOnlyIfNeeded = true`, so a field that *appears* after a button press never gets key status on its own. `panel.makeKey()` works (verified live: the panel reports `isKeyWindow == true` while Chrome stays frontmost, and typed characters land in the field) — but the `@FocusState` must be set on the *next* run-loop turn, because `makeKey()` leaves the panel itself as first responder and a same-pass focus is thrown away.
+- **Row menus are AppKit `NSMenu`s (`RowMenu.swift`), opened from the row's `•••` button and from right-click via `menu(for:)`.** SwiftUI's `.contextMenu` never appears in the live panel because Chronos is never the active app; an `NSMenu` popped from an `NSView` works regardless (the same way status-bar menus do).
+- **Escape needs a local `NSEvent` monitor (`View.onEscape(while:perform:)`).** Neither `onExitCommand` nor `onKeyPress(.escape)` fires while a SwiftUI `TextField` is editing on macOS 14+; both were tried in the live panel and neither reached the view. The monitor stores its action on a `@MainActor` class so nothing non-`Sendable` is captured by the `@Sendable` monitor closure, and only `Void` crosses out of `MainActor.assumeIsolated` (`NSEvent` is not `Sendable`).
+- `MenuBarController` refreshes off `withObservationTracking` on the engine (`now`, `openSession`, `projects`, `settings`), re-arming inside the `onChange` hop; there is no second timer. `onChange` fires before the value is applied and off the main actor, hence the `Task { @MainActor ... }`. Re-arming also refreshes, so refresh exactly once per change.
 - Ad-hoc code signing (`CODE_SIGN_IDENTITY=-`) is required even for local runs: `SMAppService` login-item registration fails on unsigned binaries.
 - Writing to `~/Documents` triggers a one-time TCC prompt; `NSDocumentsFolderUsageDescription` is set in `project.yml`.
 - `CGWindowListCreateImage` is obsoleted (macOS 15+); to screenshot the panel over the wallpaper, use ScreenCaptureKit with an `SCContentFilter` that excludes windows with `windowLayer >= 0`.

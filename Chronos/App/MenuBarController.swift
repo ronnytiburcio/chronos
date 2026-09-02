@@ -1,38 +1,141 @@
 import AppKit
+import Observation
 
-/// Owns the menu bar status item. Phase 2 ships the panel toggle and Quit;
-/// later phases add the current project, quick-start list, and settings.
+/// Owns the menu bar status item (SPEC §10): a bolt that fills while a timer
+/// runs, optionally with the running project's elapsed time beside it, and a
+/// menu that can stop, switch, show or hide the panel, and quit.
 ///
-/// It talks to the panel through closures so it can be created *before* the
-/// panel exists: the menu carries Quit, the only way out of a Dock-less agent.
+/// It talks to the panel and the settings window through closures so it can be
+/// created *before* either exists: the menu carries Quit, the only way out of a
+/// Dock-less agent.
+///
+/// The button refreshes off ``TimerEngine``'s observation rather than a timer
+/// of its own — the engine already ticks once a second while a session is open,
+/// and stops ticking when nothing is running.
 @MainActor
 final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
+    private let engine: TimerEngine
     private let isPanelVisible: () -> Bool
     private let togglePanel: () -> Void
-    private let toggleItem: NSMenuItem
+    private let openSettings: () -> Void
 
-    init(isPanelVisible: @escaping () -> Bool, togglePanel: @escaping () -> Void) {
+    init(
+        engine: TimerEngine,
+        isPanelVisible: @escaping () -> Bool,
+        togglePanel: @escaping () -> Void,
+        openSettings: @escaping () -> Void
+    ) {
+        self.engine = engine
         self.isPanelVisible = isPanelVisible
         self.togglePanel = togglePanel
+        self.openSettings = openSettings
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        toggleItem = NSMenuItem(title: "Hide Panel", action: nil, keyEquivalent: "")
         super.init()
 
-        if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "bolt", accessibilityDescription: "Chronos")
-            button.image?.isTemplate = true
-        }
-        statusItem.menu = buildMenu()
-    }
-
-    private func buildMenu() -> NSMenu {
         let menu = NSMenu()
         menu.delegate = self
+        statusItem.menu = menu
 
-        toggleItem.target = self
-        toggleItem.action = #selector(togglePanelAction)
-        menu.addItem(toggleItem)
+        observeEngine()
+    }
+
+    // MARK: - Button
+
+    /// Re-arms itself on every change, because `withObservationTracking` fires
+    /// once per registration. `onChange` runs *before* the value is applied and
+    /// off the main actor, so the work hops back to it.
+    private func observeEngine() {
+        withObservationTracking {
+            _ = engine.openSession
+            _ = engine.now
+            _ = engine.projects
+            _ = engine.settings.showElapsedInMenuBar
+        } onChange: { [weak self] in
+            // Re-arming also refreshes, so the button is redrawn exactly once
+            // per change.
+            Task { @MainActor [weak self] in self?.observeEngine() }
+        }
+        refreshButton()
+    }
+
+    private func refreshButton() {
+        guard let button = statusItem.button else { return }
+        let running = engine.runningProject
+
+        // SPEC §10: filled and red while a timer runs, an outline (template,
+        // so it follows the menu bar's own color) when idle.
+        if running != nil {
+            let configuration = NSImage.SymbolConfiguration(paletteColors: [Palette.scarlet.nsColor])
+            let image = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: "Chronos: running")?
+                .withSymbolConfiguration(configuration)
+            image?.isTemplate = false
+            button.image = image
+        } else {
+            let image = NSImage(systemSymbolName: "bolt", accessibilityDescription: "Chronos: not running")
+            image?.isTemplate = true
+            button.image = image
+        }
+
+        if let running, engine.settings.showElapsedInMenuBar {
+            let elapsed = engine.total(for: running.id, asOf: engine.now)
+            button.title = " " + TimeFormatting.hoursMinutesCompact(elapsed)
+            button.imagePosition = .imageLeading
+        } else {
+            button.title = ""
+            button.imagePosition = .imageOnly
+        }
+    }
+
+    // MARK: - Menu
+
+    /// Rebuilt on every open so the project list, the running project, and the
+    /// panel's visibility are always current.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+
+        if let running = engine.runningProject {
+            menu.addItem(disabledItem(title: "Running: \(running.name)"))
+            let stop = NSMenuItem(title: "Stop", action: #selector(stopTiming), keyEquivalent: "")
+            stop.target = self
+            menu.addItem(stop)
+        } else {
+            menu.addItem(disabledItem(title: "Not running"))
+        }
+
+        let projects = engine.visibleProjects
+        if !projects.isEmpty {
+            menu.addItem(.separator())
+            for project in projects {
+                let item = NSMenuItem(
+                    title: project.name,
+                    action: #selector(startProject(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                item.representedObject = project.id
+                item.state = engine.runningProject?.id == project.id ? .on : .off
+                menu.addItem(item)
+            }
+        }
+
+        menu.addItem(.separator())
+
+        let toggle = NSMenuItem(
+            title: isPanelVisible() ? "Hide Panel" : "Show Panel",
+            action: #selector(togglePanelAction),
+            keyEquivalent: ""
+        )
+        toggle.target = self
+        menu.addItem(toggle)
+
+        let settings = NSMenuItem(
+            title: "Settings…",
+            action: #selector(openSettingsAction),
+            keyEquivalent: ","
+        )
+        settings.target = self
+        menu.addItem(settings)
 
         menu.addItem(.separator())
 
@@ -43,14 +146,30 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         )
         quit.target = NSApp
         menu.addItem(quit)
-        return menu
     }
 
-    func menuNeedsUpdate(_ menu: NSMenu) {
-        toggleItem.title = isPanelVisible() ? "Hide Panel" : "Show Panel"
+    private func disabledItem(title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.isEnabled = false
+        return item
+    }
+
+    // MARK: - Actions
+
+    @objc private func stopTiming() {
+        engine.stop()
+    }
+
+    @objc private func startProject(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? UUID else { return }
+        engine.toggle(projectID: id)
     }
 
     @objc private func togglePanelAction() {
         togglePanel()
+    }
+
+    @objc private func openSettingsAction() {
+        openSettings()
     }
 }

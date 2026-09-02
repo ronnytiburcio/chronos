@@ -104,6 +104,11 @@ final class TimerEngine {
 
     var settings: Settings { state.settings }
 
+    /// The calendar (and therefore the time zone) the engine does its
+    /// tracking-day math in. The header formats the date with it so the label
+    /// and the totals can never disagree about which day it is.
+    var trackingCalendar: Calendar { calendar }
+
     /// Start of the tracking day on screen. Today's totals are the sessions
     /// that started at or after it. Phase 5 advances it.
     var lastRollover: Date {

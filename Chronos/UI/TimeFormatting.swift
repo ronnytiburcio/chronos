@@ -14,4 +14,20 @@ enum TimeFormatting {
         let total = Int(max(0, seconds))
         return String(format: "%d:%02d:%02d", total / 3600, (total % 3600) / 60, total % 60)
     }
+
+    /// `Xh Ym` — the day total in the panel header (SPEC §5). Seconds are
+    /// dropped, not rounded, so the header never reads a minute ahead of the
+    /// row times below it.
+    static func hoursMinutes(_ seconds: TimeInterval) -> String {
+        guard seconds.isFinite else { return "0h 0m" }
+        let total = Int(max(0, seconds))
+        return "\(total / 3600)h \((total % 3600) / 60)m"
+    }
+
+    /// `H:MM` — the elapsed time beside the menu bar bolt (SPEC §10).
+    static func hoursMinutesCompact(_ seconds: TimeInterval) -> String {
+        guard seconds.isFinite else { return "0:00" }
+        let total = Int(max(0, seconds))
+        return String(format: "%d:%02d", total / 3600, (total % 3600) / 60)
+    }
 }

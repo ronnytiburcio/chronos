@@ -10,10 +10,6 @@ import SwiftUI
 /// app state (`TimerEngine`).
 @MainActor
 final class PanelController: NSObject {
-    /// Placeholder size for this phase; Phase 4 grows the height with the
-    /// project list.
-    static let panelSize = CGSize(width: 280, height: 420)
-
     /// Debounce for frame-change reports, so a drag is one write and not one
     /// per mouse-moved event.
     private static let frameSaveDelay = Duration.milliseconds(500)
@@ -27,6 +23,7 @@ final class PanelController: NSObject {
     private let panel: DesktopPanel
     private let backdrop: NSVisualEffectView
     private let engine: TimerEngine
+    private let actions: PanelActions
     private let onFrameChange: (CGRect) -> Void
     private var lastReportedFrame: CGRect?
     private var frameSaveTask: Task<Void, Never>?
@@ -37,16 +34,29 @@ final class PanelController: NSObject {
     ///   - engine: the running state the panel content reads from.
     ///   - savedFrame: the frame from the last run, if any. Only its origin is
     ///     honoured, and only if enough of it is still on a connected screen.
+    ///   - actions: what the panel content cannot do for itself.
     ///   - onFrameChange: called (debounced) with the panel's frame whenever it
     ///     differs from the last one reported or restored.
-    init(engine: TimerEngine, savedFrame: CGRect?, onFrameChange: @escaping (CGRect) -> Void) {
+    init(
+        engine: TimerEngine,
+        savedFrame: CGRect?,
+        actions: PanelActions,
+        onFrameChange: @escaping (CGRect) -> Void
+    ) {
         self.engine = engine
+        self.actions = actions
         self.onFrameChange = onFrameChange
         self.lastReportedFrame = savedFrame
 
+        // The height is a pure function of the row count, so the panel opens at
+        // the right size instead of laying out once and then jumping.
+        let size = CGSize(
+            width: PanelLayout.width,
+            height: PanelLayout.height(rowCount: engine.visibleProjects.count)
+        )
         let frame = WindowPlacement.resolvedFrame(
             saved: savedFrame,
-            size: Self.panelSize,
+            size: size,
             screens: NSScreen.screens.map(\.frame),
             placementArea: (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame
         )
@@ -139,12 +149,35 @@ final class PanelController: NSObject {
         tint.autoresizingMask = [.width, .height]
         backdrop.addSubview(tint)
 
-        let hostingView = FirstMouseHostingView(rootView: PanelPlaceholderView(engine: engine))
+        let content = PanelView(engine: engine, actions: actions) { [weak self] height in
+            self?.setHeight(height)
+        }
+        let hostingView = FirstMouseHostingView(rootView: content)
         hostingView.frame = backdrop.bounds
         hostingView.autoresizingMask = [.width, .height]
         backdrop.addSubview(hostingView)
 
         panel.contentView = backdrop
+    }
+
+    // MARK: - Height
+
+    /// Grows or shrinks the panel with the project list, keeping the *top*
+    /// edge where the user put it. Cocoa's origin is bottom-left, so the origin
+    /// moves by the height delta.
+    ///
+    /// Never animated: the panel sits at desktop level behind other windows,
+    /// where a sliding edge would read as a glitch rather than a transition.
+    private func setHeight(_ height: CGFloat) {
+        var frame = panel.frame
+        guard abs(frame.height - height) > 0.5 else { return }
+        let top = frame.maxY
+        frame.size.height = height
+        frame.origin.y = top - height
+        panel.setFrame(frame, display: true, animate: false)
+        // A resize is a frame change like any other; persist it so the panel
+        // comes back where (and as tall as) it was.
+        scheduleFrameSave()
     }
 
     // MARK: - Notifications

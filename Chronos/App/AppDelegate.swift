@@ -13,23 +13,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // on screen or touch the real state file.
         guard !Self.isRunningUnitTests else { return }
 
-        // Menu bar first: it carries Quit, the only exit from a Dock-less agent.
-        menuBar = MenuBarController(
-            isPanelVisible: { [weak self] in self?.panel?.isVisible ?? false },
-            togglePanel: { [weak self] in self?.panel?.toggle() }
-        )
-
         // The engine is the single owner of `AppState`, the window frame
         // included, so a frame save can never clobber the rollover
-        // bookkeeping or the settings sitting in the same file.
+        // bookkeeping or the settings sitting in the same file. It is built
+        // first because both the menu bar and the panel read from it.
         let engine = TimerEngine()
         self.engine = engine
 
-        let panel = PanelController(engine: engine, savedFrame: engine.windowFrame) { frame in
+        // Menu bar second: it carries Quit, the only exit from a Dock-less
+        // agent, so it must exist even if building the panel goes wrong.
+        menuBar = MenuBarController(
+            engine: engine,
+            isPanelVisible: { [weak self] in self?.panel?.isVisible ?? false },
+            togglePanel: { [weak self] in self?.panel?.toggle() },
+            openSettings: { Self.openSettings() }
+        )
+
+        let actions = PanelActions(
+            onReset: { Self.resetDay() },
+            onOpenSettings: { Self.openSettings() }
+        )
+        let panel = PanelController(
+            engine: engine,
+            savedFrame: engine.windowFrame,
+            actions: actions
+        ) { frame in
             engine.updateWindowFrame(frame)
         }
         panel.show()
         self.panel = panel
+    }
+
+    /// Manual reset lands in Phase 5 with the rest of the rollover machinery;
+    /// the footer's confirm step is wired to it already.
+    private static func resetDay() {
+        NSLog("Chronos: manual reset arrives in Phase 5")
+    }
+
+    /// The settings window lands in Phase 6.
+    private static func openSettings() {
+        NSLog("Chronos: settings window arrives in Phase 6")
     }
 
     func applicationWillTerminate(_ notification: Notification) {
