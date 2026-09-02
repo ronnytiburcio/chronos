@@ -13,6 +13,7 @@
 		15CA3655F1796795E68EBE30 /* WindowPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61EE04AF92136EFA6E772CB /* WindowPlacementTests.swift */; };
 		160440287091BF9B30024342 /* ProjectColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 479807AE812434A516F33DC1 /* ProjectColor.swift */; };
 		190D804D2284B27141149A36 /* PanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21E0041D98ACE2DC1074351 /* PanelController.swift */; };
+		1D4821BB3F5B76A4612AA394 /* FakeClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C9FB32A42E6DCAAFB02F4D1 /* FakeClock.swift */; };
 		1EC928319584BEB7E6E4E9FE /* AppStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1176F0ECACA0C8725C9FD9 /* AppStateStore.swift */; };
 		21D72AFD7D99466F8C9A9F8C /* RowMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F52743998B4DAC942C196C5 /* RowMenu.swift */; };
 		24B916D8CE3A3D34E804D35F /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF717BFA6CEF2908F4AD2851 /* Project.swift */; };
@@ -28,6 +29,7 @@
 		4BD2A11950F0ABF22469DA86 /* ProjectStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64E842D8239303E6FD9E21E7 /* ProjectStore.swift */; };
 		51AE1464C720A4035D8F69D9 /* PanelKeyWindow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C0C39299CD9527DF0254DD1 /* PanelKeyWindow.swift */; };
 		51DD3D8DD33653EDB469D98F /* Session.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA84A5B292B3CDD71692D636 /* Session.swift */; };
+		56EE90314CF6AF6EBC6B650F /* CSV.swift in Sources */ = {isa = PBXBuildFile; fileRef = E50632E2919675274CE753BB /* CSV.swift */; };
 		570453A6EB62F99C20F7450E /* AppStateStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C348482826F44095F6BFB308 /* AppStateStoreTests.swift */; };
 		60D051FE66C8FF7EA1425F26 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7C64C65D013680B18B182219 /* Assets.xcassets */; };
 		68C628614025984A69D645BE /* TimerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 113A6E514D0107862AB18336 /* TimerEngine.swift */; };
@@ -36,6 +38,7 @@
 		6B98A3D064BA6FE281B9D3E0 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F539812446C0D368CD9C063 /* Settings.swift */; };
 		7337A848613E4B854BD5CCED /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFC004726E7835495A3713EE /* AppDelegate.swift */; };
 		7604A4F3DB64A37932C43E8D /* TrackingDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47AD655E90FEA408EE436F8F /* TrackingDay.swift */; };
+		76B3D69B5C7D31280E653209 /* ArchiveWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AD4A439E43191C49D097E5F /* ArchiveWriter.swift */; };
 		8231F49A9252B2CF8B5598E4 /* AppPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9DE8C2EA1479FF4D2521770 /* AppPaths.swift */; };
 		85B9F3327AF629972479635B /* ProjectColorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65AFB2EB5D1CF162B30DE20C /* ProjectColorTests.swift */; };
 		86B528732287660FB930A905 /* HeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE43F1E0AADA8A697F6C81B1 /* HeaderView.swift */; };
@@ -46,9 +49,13 @@
 		95A49F503D8D715E50E18739 /* TrackingDayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 630175B4B802C36BFF115BF7 /* TrackingDayTests.swift */; };
 		AA6A30DEFE623D6DDDEA9376 /* ChronosApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145B805DB178287DD8009EB4 /* ChronosApp.swift */; };
 		AD5336528A2FBA450795FA65 /* JSONDates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38D7E1E521591A20C7B38AFD /* JSONDates.swift */; };
+		B9CADF313F287AB2569F02FD /* CSVTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E84CE11DC72863BF3CCBCB87 /* CSVTests.swift */; };
 		C667D84D3D0D12A3211A93C2 /* TimeFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7277896A1BE1F112E87DDE3E /* TimeFormattingTests.swift */; };
 		C6A80282F37AE9132DCC2955 /* JSONFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E29821F10B4AFF3BAD2AA9F /* JSONFile.swift */; };
 		C7919C23EBE5C478155DF1DA /* AppInfoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B2E7FEF87AD3378525B4FE0 /* AppInfoTests.swift */; };
+		CDA1CF747AC6C7AC231748BF /* RolloverScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CB20A1B07989CE87B974DD1 /* RolloverScheduler.swift */; };
+		D30E46CBF68C1D170E2D5B5B /* ArchivedDay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A88F83BE78A9471E68585EB /* ArchivedDay.swift */; };
+		FA4DD23B8FF17C885F60F539 /* RolloverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1CC063742329C087CEC965D /* RolloverTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -72,6 +79,7 @@
 		33FFECA7C3F0AE4D2BDA0877 /* TimeFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatting.swift; sourceTree = "<group>"; };
 		34AD318E5DDE2DD02F4C3D4A /* ProjectRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectRowView.swift; sourceTree = "<group>"; };
 		38D7E1E521591A20C7B38AFD /* JSONDates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONDates.swift; sourceTree = "<group>"; };
+		3CB20A1B07989CE87B974DD1 /* RolloverScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RolloverScheduler.swift; sourceTree = "<group>"; };
 		479807AE812434A516F33DC1 /* ProjectColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectColor.swift; sourceTree = "<group>"; };
 		47AD655E90FEA408EE436F8F /* TrackingDay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackingDay.swift; sourceTree = "<group>"; };
 		4A3DBA7797A8AD0AE9AFDDE6 /* SessionLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLog.swift; sourceTree = "<group>"; };
@@ -83,12 +91,15 @@
 		630175B4B802C36BFF115BF7 /* TrackingDayTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackingDayTests.swift; sourceTree = "<group>"; };
 		64E842D8239303E6FD9E21E7 /* ProjectStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectStore.swift; sourceTree = "<group>"; };
 		65AFB2EB5D1CF162B30DE20C /* ProjectColorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectColorTests.swift; sourceTree = "<group>"; };
+		6A88F83BE78A9471E68585EB /* ArchivedDay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchivedDay.swift; sourceTree = "<group>"; };
+		6C9FB32A42E6DCAAFB02F4D1 /* FakeClock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeClock.swift; sourceTree = "<group>"; };
 		6FBC547C53A9FC4D3150B9BE /* DragHandleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragHandleView.swift; sourceTree = "<group>"; };
 		7277896A1BE1F112E87DDE3E /* TimeFormattingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormattingTests.swift; sourceTree = "<group>"; };
 		7A106CA127562905F7FB7CCB /* ChronosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChronosTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C64C65D013680B18B182219 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		81B340BD7A70FDD0FBF444BE /* TimerEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerEngineTests.swift; sourceTree = "<group>"; };
 		91DC75B660B104A26724BEC1 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		9AD4A439E43191C49D097E5F /* ArchiveWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveWriter.swift; sourceTree = "<group>"; };
 		9B2E7FEF87AD3378525B4FE0 /* AppInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInfoTests.swift; sourceTree = "<group>"; };
 		9E29821F10B4AFF3BAD2AA9F /* JSONFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONFile.swift; sourceTree = "<group>"; };
 		9F52743998B4DAC942C196C5 /* RowMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RowMenu.swift; sourceTree = "<group>"; };
@@ -103,7 +114,10 @@
 		D6972E5D1FBCCFD9244F3D2D /* AppInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInfo.swift; sourceTree = "<group>"; };
 		DF717BFA6CEF2908F4AD2851 /* Project.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Project.swift; sourceTree = "<group>"; };
 		DFC004726E7835495A3713EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		E1CC063742329C087CEC965D /* RolloverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RolloverTests.swift; sourceTree = "<group>"; };
 		E308D36E67CAF111B0C58E5F /* SessionLogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLogTests.swift; sourceTree = "<group>"; };
+		E50632E2919675274CE753BB /* CSV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSV.swift; sourceTree = "<group>"; };
+		E84CE11DC72863BF3CCBCB87 /* CSVTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CSVTests.swift; sourceTree = "<group>"; };
 		F9DE8C2EA1479FF4D2521770 /* AppPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPaths.swift; sourceTree = "<group>"; };
 		FE43F1E0AADA8A697F6C81B1 /* HeaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeaderView.swift; sourceTree = "<group>"; };
 		FF1176F0ECACA0C8725C9FD9 /* AppStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateStore.swift; sourceTree = "<group>"; };
@@ -115,8 +129,11 @@
 			children = (
 				9B2E7FEF87AD3378525B4FE0 /* AppInfoTests.swift */,
 				C348482826F44095F6BFB308 /* AppStateStoreTests.swift */,
+				E84CE11DC72863BF3CCBCB87 /* CSVTests.swift */,
+				6C9FB32A42E6DCAAFB02F4D1 /* FakeClock.swift */,
 				5A090BA2343AF74A764C3689 /* PanelLayoutTests.swift */,
 				65AFB2EB5D1CF162B30DE20C /* ProjectColorTests.swift */,
+				E1CC063742329C087CEC965D /* RolloverTests.swift */,
 				E308D36E67CAF111B0C58E5F /* SessionLogTests.swift */,
 				7277896A1BE1F112E87DDE3E /* TimeFormattingTests.swift */,
 				81B340BD7A70FDD0FBF444BE /* TimerEngineTests.swift */,
@@ -163,6 +180,7 @@
 		6E2D4E859BD07A2B0BC9E765 /* Model */ = {
 			isa = PBXGroup;
 			children = (
+				6A88F83BE78A9471E68585EB /* ArchivedDay.swift */,
 				DF717BFA6CEF2908F4AD2851 /* Project.swift */,
 				CA84A5B292B3CDD71692D636 /* Session.swift */,
 				0F539812446C0D368CD9C063 /* Settings.swift */,
@@ -188,6 +206,7 @@
 			isa = PBXGroup;
 			children = (
 				AEA9CCF4E908EFD42D1FAA1D /* Clock.swift */,
+				3CB20A1B07989CE87B974DD1 /* RolloverScheduler.swift */,
 				113A6E514D0107862AB18336 /* TimerEngine.swift */,
 			);
 			path = Engine;
@@ -233,6 +252,8 @@
 			children = (
 				F9DE8C2EA1479FF4D2521770 /* AppPaths.swift */,
 				FF1176F0ECACA0C8725C9FD9 /* AppStateStore.swift */,
+				9AD4A439E43191C49D097E5F /* ArchiveWriter.swift */,
+				E50632E2919675274CE753BB /* CSV.swift */,
 				38D7E1E521591A20C7B38AFD /* JSONDates.swift */,
 				9E29821F10B4AFF3BAD2AA9F /* JSONFile.swift */,
 				64E842D8239303E6FD9E21E7 /* ProjectStore.swift */,
@@ -337,8 +358,11 @@
 			files = (
 				C7919C23EBE5C478155DF1DA /* AppInfoTests.swift in Sources */,
 				570453A6EB62F99C20F7450E /* AppStateStoreTests.swift in Sources */,
+				B9CADF313F287AB2569F02FD /* CSVTests.swift in Sources */,
+				1D4821BB3F5B76A4612AA394 /* FakeClock.swift in Sources */,
 				2855A668348C5970A6914DE0 /* PanelLayoutTests.swift in Sources */,
 				85B9F3327AF629972479635B /* ProjectColorTests.swift in Sources */,
+				FA4DD23B8FF17C885F60F539 /* RolloverTests.swift in Sources */,
 				1151130CAC206CB061A62F70 /* SessionLogTests.swift in Sources */,
 				C667D84D3D0D12A3211A93C2 /* TimeFormattingTests.swift in Sources */,
 				9226C40D4CC74BA140277743 /* TimerEngineTests.swift in Sources */,
@@ -355,6 +379,9 @@
 				46F6541872069F852A1E1702 /* AppInfo.swift in Sources */,
 				8231F49A9252B2CF8B5598E4 /* AppPaths.swift in Sources */,
 				1EC928319584BEB7E6E4E9FE /* AppStateStore.swift in Sources */,
+				76B3D69B5C7D31280E653209 /* ArchiveWriter.swift in Sources */,
+				D30E46CBF68C1D170E2D5B5B /* ArchivedDay.swift in Sources */,
+				56EE90314CF6AF6EBC6B650F /* CSV.swift in Sources */,
 				AA6A30DEFE623D6DDDEA9376 /* ChronosApp.swift in Sources */,
 				8CEA75BA7D0D55ABEDE65003 /* Clock.swift in Sources */,
 				44B528B5DD8AD3C873F29979 /* DesktopPanel.swift in Sources */,
@@ -375,6 +402,7 @@
 				160440287091BF9B30024342 /* ProjectColor.swift in Sources */,
 				2A139BF6945951E00D5D64E4 /* ProjectRowView.swift in Sources */,
 				4BD2A11950F0ABF22469DA86 /* ProjectStore.swift in Sources */,
+				CDA1CF747AC6C7AC231748BF /* RolloverScheduler.swift in Sources */,
 				21D72AFD7D99466F8C9A9F8C /* RowMenu.swift in Sources */,
 				51DD3D8DD33653EDB469D98F /* Session.swift in Sources */,
 				0B1170670780B5186BA3F6B5 /* SessionLog.swift in Sources */,

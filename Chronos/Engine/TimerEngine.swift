@@ -36,12 +36,18 @@ final class TimerEngine {
     /// The persisted state (`state.json`). Observed, so `settings`,
     /// `lastRollover`, and `windowFrame` derived from it update the UI.
     private(set) var state: AppState
+    /// The last thing that went wrong and the user might want to know about —
+    /// an archive that had to be written somewhere else, a file that could not
+    /// be saved. Shown in the menu bar menu until dismissed. `nil` when all is
+    /// well, which is the normal case.
+    private(set) var lastWarning: String?
 
     @ObservationIgnored private let clock: Clock
     @ObservationIgnored private let projectStore: ProjectStore
     @ObservationIgnored private let sessionLog: SessionLog
     @ObservationIgnored private let stateStore: AppStateStore
     @ObservationIgnored private let calendar: Calendar
+    @ObservationIgnored private let archiveLocation: ArchiveLocation
     @ObservationIgnored private var ticker: Timer?
     @ObservationIgnored private let tickTarget = TickTarget()
 
@@ -54,13 +60,15 @@ final class TimerEngine {
         projectStore: ProjectStore = ProjectStore(),
         sessionLog: SessionLog = SessionLog(),
         stateStore: AppStateStore = AppStateStore(),
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        archiveLocation: ArchiveLocation = .standard
     ) {
         self.clock = clock
         self.projectStore = projectStore
         self.sessionLog = sessionLog
         self.stateStore = stateStore
         self.calendar = calendar
+        self.archiveLocation = archiveLocation
 
         let loadedState = stateStore.load()
         let loadedSessions: [Session]
@@ -92,6 +100,29 @@ final class TimerEngine {
         if loadedState.lastRollover == nil {
             persistState()
         }
+
+        // SPEC §6: a session that was still open across a rollover belongs to
+        // a day that has already turned over. Close it at the boundary and file
+        // it under the day it started, on its own: the catch-up below only
+        // covers days from the boundary onwards, and the rest of that earlier
+        // day was archived when its rollover ran.
+        if let open = openSession, open.start < resolvedRollover {
+            NSLog("Chronos: session \(open.id) started before the last rollover; closing it at \(resolvedRollover)")
+            close(open, at: resolvedRollover)
+            let staleDayStart = TrackingDay.start(
+                containing: open.start,
+                rollover: loadedState.settings.rollover,
+                calendar: calendar
+            )
+            let stale = archivedDay(from: staleDayStart, to: resolvedRollover) { $0.id == open.id }
+            if !stale.isEmpty {
+                writeArchive(stale)
+            }
+        }
+
+        // Every rollover missed while Chronos was closed (SPEC §7), oldest
+        // first, before anything is on screen.
+        performRolloversIfNeeded(now: instant)
 
         // An open session in the log means the app died (or was quit) while a
         // timer ran: resume it, still counting from its original start.
@@ -188,18 +219,25 @@ final class TimerEngine {
             close(open, at: instant)
         }
 
-        let session = Session(projectID: projectID, start: instant)
-        do {
-            // On disk before it is in memory: a session the log never got is a
-            // session that would vanish on relaunch anyway.
-            try sessionLog.append(.open(id: session.id, projectID: projectID, start: instant))
-        } catch {
-            NSLog("Chronos: could not record the start of a session: \(error.localizedDescription)")
-            return
-        }
-        sessions.append(session)
+        guard beginSession(projectID: projectID, at: instant) else { return }
         now = instant
         startTicking()
+    }
+
+    /// Opens a session, log first. Returns `false` when the log refused the
+    /// record: a session the log never got is a session that would vanish on
+    /// relaunch anyway, so it is not put in memory either.
+    @discardableResult
+    private func beginSession(projectID: UUID, at start: Date) -> Bool {
+        let session = Session(projectID: projectID, start: start)
+        do {
+            try sessionLog.append(.open(id: session.id, projectID: projectID, start: start))
+        } catch {
+            warn("Could not record the start of a session: \(error.localizedDescription)")
+            return false
+        }
+        sessions.append(session)
+        return true
     }
 
     /// Closes the open session, if there is one.
@@ -228,9 +266,213 @@ final class TimerEngine {
         do {
             try sessionLog.append(.close(id: session.id, end: end))
         } catch {
-            NSLog("Chronos: could not record the end of a session: \(error.localizedDescription)")
+            warn("Could not record the end of a session: \(error.localizedDescription)")
         }
         sessions[index].end = end
+    }
+
+    // MARK: - Rollover
+
+    /// Runs every rollover that is due, oldest first (SPEC §7).
+    ///
+    /// One call handles all four prompts — launch, the scheduled timer, waking
+    /// from sleep, and the system clock changing — because they ask the same
+    /// question: has the tracking day on screen ended? A Mac that was asleep
+    /// for three days answers it three times, in order, so each day lands in
+    /// the archive under its own date. Running this when nothing is due does
+    /// nothing at all.
+    func performRolloversIfNeeded(now instant: Date) {
+        // Each rollover advances `lastRollover` to a strictly later boundary,
+        // so the loop always terminates.
+        while true {
+            let boundary = nextRolloverBoundary
+            guard boundary <= instant else { break }
+            performRollover(at: boundary)
+        }
+        if instant > now {
+            now = instant
+        }
+    }
+
+    /// Manual reset (SPEC §5's ⟳): the rollover routine with *now* as the
+    /// boundary, so the day is archived under the date it started and the
+    /// panel starts counting again from zero.
+    func resetDay() {
+        // A clock that jumped backwards must not produce a boundary before the
+        // day it is ending.
+        let instant = max(clock.now(), lastRollover)
+        // Any day that already ended is filed first, under its own date; the
+        // reset only ever closes out the day that is actually on screen.
+        performRolloversIfNeeded(now: instant)
+        performRollover(at: instant)
+        now = instant
+    }
+
+    /// When the tracking day on screen ends. The scheduler arms its timer for
+    /// this, and the catch-up loop runs while it is in the past.
+    var nextRolloverBoundary: Date {
+        TrackingDay.next(after: lastRollover, rollover: settings.rollover, calendar: calendar)
+    }
+
+    /// Closes out the tracking day `[lastRollover, boundary)`.
+    private func performRollover(at boundary: Date) {
+        let dayStart = lastRollover
+
+        // 1. Whatever was running stops at the boundary, not at "now": the
+        //    time after it belongs to the next day.
+        var interrupted: UUID?
+        if let open = openSession {
+            close(open, at: boundary)
+            interrupted = open.projectID
+        }
+
+        let day = archivedDay(from: dayStart, to: boundary)
+
+        // 2. An empty day writes nothing but still turns over.
+        if !day.isEmpty {
+            writeArchive(day)
+        }
+
+        // 3. Rotate the log before anything reopens, so the close record lands
+        //    in the year that is ending and the restart in the year beginning.
+        rotateSessionLogIfYearChanged(from: dayStart, to: boundary)
+
+        // 4. SPEC §7's optional restart, from the boundary rather than now, so
+        //    no time goes missing between the two days.
+        if settings.restartRunningProjectAfterRollover, let projectID = interrupted {
+            beginSession(projectID: projectID, at: boundary)
+        }
+
+        // 5. The new day is what the panel shows: totals are the sessions that
+        //    started at or after this.
+        state.lastRollover = boundary
+        persistState()
+
+        if openSession == nil {
+            stopTicking()
+        } else {
+            startTicking()
+        }
+    }
+
+    /// Everything the archive needs about the day, resolved while the sessions
+    /// are still in hand: totals in the panel's project order, sessions in the
+    /// order they were opened.
+    ///
+    /// Called after the open session has been closed at the boundary, so every
+    /// session it sees has an end; measuring to the boundary anyway keeps it
+    /// honest if one somehow does not.
+    private func archivedDay(
+        from dayStart: Date,
+        to boundary: Date,
+        including isIncluded: (Session) -> Bool = { _ in true }
+    ) -> ArchivedDay {
+        let daySessions = sessions.filter { $0.start >= dayStart && $0.start < boundary && isIncluded($0) }
+        let names = Dictionary(projects.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
+
+        // Archived projects are included when they have time on them: the
+        // archive records what happened, not what the panel shows.
+        let totals: [ProjectTotal] = projects.compactMap { project in
+            let seconds = daySessions.reduce(0.0) { running, session in
+                session.projectID == project.id ? running + session.duration(asOf: boundary) : running
+            }
+            return seconds > 0 ? ProjectTotal(name: project.name, seconds: seconds) : nil
+        }
+
+        let archived: [ArchivedSession] = daySessions.compactMap { session in
+            guard let name = names[session.projectID] else {
+                NSLog("Chronos: session \(session.id) names a project that no longer exists; leaving it out of the archive")
+                return nil
+            }
+            return ArchivedSession(
+                projectName: name,
+                start: session.start,
+                end: min(session.end ?? boundary, boundary)
+            )
+        }
+
+        return ArchivedDay(
+            dateString: TrackingDay.dateString(
+                // A manual reset boundary is not a day start, so the date the
+                // rows carry comes from the day the reset ended.
+                for: TrackingDay.start(containing: dayStart, rollover: settings.rollover, calendar: calendar),
+                calendar: calendar
+            ),
+            dayStart: dayStart,
+            dayEnd: boundary,
+            totals: totals,
+            sessions: archived
+        )
+    }
+
+    /// Writes the archive, falling back to Application Support when the chosen
+    /// folder refuses (most likely the one-time Documents prompt was declined).
+    /// A failure never stops the rollover: the sessions are still in the log,
+    /// and a day that cannot be filed is better than a day that never ends.
+    private func writeArchive(_ day: ArchivedDay) {
+        let folder = archiveLocation.folder(settings)
+        do {
+            try writer(at: folder).write(day: day)
+            return
+        } catch {
+            NSLog("Chronos: could not write the archive to \(folder.path): \(error.localizedDescription)")
+        }
+
+        let fallback = archiveLocation.fallbackFolder()
+        do {
+            try writer(at: fallback).write(day: day)
+            warn("Archive written to \(fallback.path) because \(folder.path) was not writable")
+        } catch {
+            warn("Could not write the archive for \(day.dateString) to \(folder.path) or \(fallback.path)")
+        }
+    }
+
+    private func writer(at folder: URL) -> ArchiveWriter {
+        ArchiveWriter(
+            folder: folder,
+            calendar: calendar,
+            writesMarkdownNotes: settings.writeMarkdownDailyNotes
+        )
+    }
+
+    /// Moves `sessions.jsonl` aside as `sessions-YYYY.jsonl` when a rollover
+    /// crosses into a new year, and drops the sessions it took with it from
+    /// memory. Refusing to overwrite an existing archive is the log's own rule;
+    /// here that just means the rotation is skipped and the day still turns.
+    private func rotateSessionLogIfYearChanged(from previous: Date, to boundary: Date) {
+        let closingYear = calendar.component(.year, from: previous)
+        guard calendar.component(.year, from: boundary) != closingYear else { return }
+
+        let archiveURL = AppPaths.sessionsArchiveFile(
+            year: closingYear,
+            in: sessionLog.fileURL.deletingLastPathComponent()
+        )
+        do {
+            try sessionLog.rotate(to: archiveURL)
+            // Every record written before the rotation now lives in the
+            // archive, the session just closed *at* the boundary included, so
+            // memory is left holding exactly what a relaunch would load.
+            sessions.removeAll { session in
+                guard let end = session.end else { return false }
+                return end <= boundary
+            }
+        } catch {
+            warn("Could not rotate the session log into \(archiveURL.lastPathComponent): \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Warnings
+
+    /// Clears the warning shown in the menu bar menu.
+    func clearWarning() {
+        lastWarning = nil
+    }
+
+    /// Records something the user should know about. It goes to the log as
+    /// well, because the menu only ever shows the most recent one.
+    private func warn(_ text: String) {
+        NSLog("Chronos: \(text)")
+        lastWarning = text
     }
 
     // MARK: - Projects
@@ -356,7 +598,7 @@ final class TimerEngine {
         do {
             try projectStore.save(projects)
         } catch {
-            NSLog("Chronos: could not save the project list: \(error.localizedDescription)")
+            warn("Could not save the project list: \(error.localizedDescription)")
         }
     }
 
@@ -364,7 +606,7 @@ final class TimerEngine {
         do {
             try stateStore.save(state)
         } catch {
-            NSLog("Chronos: could not save app state: \(error.localizedDescription)")
+            warn("Could not save app state: \(error.localizedDescription)")
         }
     }
 

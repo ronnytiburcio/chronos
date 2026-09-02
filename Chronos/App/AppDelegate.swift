@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Built at launch rather than at init so the unit tests, which use this
     /// app as their host, never touch the real Application Support folder.
     private var engine: TimerEngine?
+    private var rollover: RolloverScheduler?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The unit tests use this app as their host; they must not put a panel
@@ -20,6 +21,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let engine = TimerEngine()
         self.engine = engine
 
+        // Catching up on missed days happens inside the engine's init, before
+        // anything is on screen; the scheduler takes it from there and fires
+        // the next one on time.
+        rollover = RolloverScheduler(engine: engine)
+
         // Menu bar second: it carries Quit, the only exit from a Dock-less
         // agent, so it must exist even if building the panel goes wrong.
         menuBar = MenuBarController(
@@ -30,7 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
 
         let actions = PanelActions(
-            onReset: { Self.resetDay() },
+            onReset: { engine.resetDay() },
             onOpenSettings: { Self.openSettings() }
         )
         let panel = PanelController(
@@ -42,12 +48,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         panel.show()
         self.panel = panel
-    }
-
-    /// Manual reset lands in Phase 5 with the rest of the rollover machinery;
-    /// the footer's confirm step is wired to it already.
-    private static func resetDay() {
-        NSLog("Chronos: manual reset arrives in Phase 5")
     }
 
     /// The settings window lands in Phase 6.

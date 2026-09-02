@@ -94,6 +94,19 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
 
+        // A failed archive write is the one thing the panel has no room to
+        // say, so it surfaces here (SPEC §8's graceful-fallback note).
+        if let warning = engine.lastWarning {
+            let item = disabledItem(title: "⚠️ " + Self.truncated(warning))
+            item.toolTip = warning
+            menu.addItem(item)
+
+            let dismiss = NSMenuItem(title: "Dismiss warning", action: #selector(dismissWarning), keyEquivalent: "")
+            dismiss.target = self
+            menu.addItem(dismiss)
+            menu.addItem(.separator())
+        }
+
         if let running = engine.runningProject {
             menu.addItem(disabledItem(title: "Running: \(running.name)"))
             let stop = NSMenuItem(title: "Stop", action: #selector(stopTiming), keyEquivalent: "")
@@ -154,6 +167,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         return item
     }
 
+    /// A warning naming two folder paths would push the menu off the screen;
+    /// the whole text stays available as the item's tooltip.
+    private static let warningLimit = 60
+
+    private static func truncated(_ text: String) -> String {
+        guard text.count > warningLimit else { return text }
+        return text.prefix(warningLimit - 1).trimmingCharacters(in: .whitespaces) + "…"
+    }
+
     // MARK: - Actions
 
     @objc private func stopTiming() {
@@ -163,6 +185,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func startProject(_ sender: NSMenuItem) {
         guard let id = sender.representedObject as? UUID else { return }
         engine.toggle(projectID: id)
+    }
+
+    @objc private func dismissWarning() {
+        engine.clearWarning()
     }
 
     @objc private func togglePanelAction() {
