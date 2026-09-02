@@ -18,6 +18,7 @@
 		1D4821BB3F5B76A4612AA394 /* FakeClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C9FB32A42E6DCAAFB02F4D1 /* FakeClock.swift */; };
 		1DFC95FD5267D8087C78B484 /* ExporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3F83CB4F2CB09DA3AD3F201 /* ExporterTests.swift */; };
 		1EC928319584BEB7E6E4E9FE /* AppStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1176F0ECACA0C8725C9FD9 /* AppStateStore.swift */; };
+		1ED8FD50204E842802C2BD57 /* BoltShape.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAB7A4D14A0F06F4192FA3DC /* BoltShape.swift */; };
 		21D72AFD7D99466F8C9A9F8C /* RowMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F52743998B4DAC942C196C5 /* RowMenu.swift */; };
 		24B916D8CE3A3D34E804D35F /* Project.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF717BFA6CEF2908F4AD2851 /* Project.swift */; };
 		24D8D8473B31EB4564817EE0 /* PanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 552E1450F010D6EA88DCA6D1 /* PanelView.swift */; };
@@ -51,6 +52,7 @@
 		8F861D75148662B81743DE20 /* FooterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3178C324D6C7F98B6CAC549F /* FooterView.swift */; };
 		910C2740653A8245DB3235BB /* ExportRangeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B53C078446DEE54985F93305 /* ExportRangeTests.swift */; };
 		9226C40D4CC74BA140277743 /* TimerEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B340BD7A70FDD0FBF444BE /* TimerEngineTests.swift */; };
+		94564AA28DE6879382CDFE35 /* BoltShapeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DB72F39E0DF4FEDE059DA5C /* BoltShapeTests.swift */; };
 		95A49F503D8D715E50E18739 /* TrackingDayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 630175B4B802C36BFF115BF7 /* TrackingDayTests.swift */; };
 		AA6A30DEFE623D6DDDEA9376 /* ChronosApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145B805DB178287DD8009EB4 /* ChronosApp.swift */; };
 		AD5336528A2FBA450795FA65 /* JSONDates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38D7E1E521591A20C7B38AFD /* JSONDates.swift */; };
@@ -105,6 +107,7 @@
 		76479D06F417404EAFE7A134 /* LoginItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginItem.swift; sourceTree = "<group>"; };
 		7A106CA127562905F7FB7CCB /* ChronosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChronosTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C64C65D013680B18B182219 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		7DB72F39E0DF4FEDE059DA5C /* BoltShapeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoltShapeTests.swift; sourceTree = "<group>"; };
 		7EF3D0BC213CFAD278374FBC /* Exporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Exporter.swift; sourceTree = "<group>"; };
 		81B340BD7A70FDD0FBF444BE /* TimerEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerEngineTests.swift; sourceTree = "<group>"; };
 		890DC83EB6D12B69F4787D7A /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
@@ -117,6 +120,7 @@
 		AD4845A6F5B1C00177A99BE7 /* PanelLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelLayout.swift; sourceTree = "<group>"; };
 		AEA9CCF4E908EFD42D1FAA1D /* Clock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Clock.swift; sourceTree = "<group>"; };
 		B53C078446DEE54985F93305 /* ExportRangeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportRangeTests.swift; sourceTree = "<group>"; };
+		BAB7A4D14A0F06F4192FA3DC /* BoltShape.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoltShape.swift; sourceTree = "<group>"; };
 		BF06DF3E961E29EF3849DCE5 /* FirstMouseHostingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstMouseHostingView.swift; sourceTree = "<group>"; };
 		C348482826F44095F6BFB308 /* AppStateStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateStoreTests.swift; sourceTree = "<group>"; };
 		C4FD6B4B8255F142369D0102 /* SettingsUpdateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsUpdateTests.swift; sourceTree = "<group>"; };
@@ -143,6 +147,7 @@
 			children = (
 				9B2E7FEF87AD3378525B4FE0 /* AppInfoTests.swift */,
 				C348482826F44095F6BFB308 /* AppStateStoreTests.swift */,
+				7DB72F39E0DF4FEDE059DA5C /* BoltShapeTests.swift */,
 				E84CE11DC72863BF3CCBCB87 /* CSVTests.swift */,
 				E3F83CB4F2CB09DA3AD3F201 /* ExporterTests.swift */,
 				B53C078446DEE54985F93305 /* ExportRangeTests.swift */,
@@ -252,6 +257,7 @@
 		C705F38B202BDC3992E0AC55 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				BAB7A4D14A0F06F4192FA3DC /* BoltShape.swift */,
 				D5EEB7F3734E0052E94A5D9B /* EscapeKeyMonitor.swift */,
 				3178C324D6C7F98B6CAC549F /* FooterView.swift */,
 				FE43F1E0AADA8A697F6C81B1 /* HeaderView.swift */,
@@ -379,6 +385,7 @@
 			files = (
 				C7919C23EBE5C478155DF1DA /* AppInfoTests.swift in Sources */,
 				570453A6EB62F99C20F7450E /* AppStateStoreTests.swift in Sources */,
+				94564AA28DE6879382CDFE35 /* BoltShapeTests.swift in Sources */,
 				B9CADF313F287AB2569F02FD /* CSVTests.swift in Sources */,
 				910C2740653A8245DB3235BB /* ExportRangeTests.swift in Sources */,
 				1DFC95FD5267D8087C78B484 /* ExporterTests.swift in Sources */,
@@ -405,6 +412,7 @@
 				1EC928319584BEB7E6E4E9FE /* AppStateStore.swift in Sources */,
 				76B3D69B5C7D31280E653209 /* ArchiveWriter.swift in Sources */,
 				D30E46CBF68C1D170E2D5B5B /* ArchivedDay.swift in Sources */,
+				1ED8FD50204E842802C2BD57 /* BoltShape.swift in Sources */,
 				56EE90314CF6AF6EBC6B650F /* CSV.swift in Sources */,
 				AA6A30DEFE623D6DDDEA9376 /* ChronosApp.swift in Sources */,
 				8CEA75BA7D0D55ABEDE65003 /* Clock.swift in Sources */,

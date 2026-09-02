@@ -63,18 +63,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         guard let button = statusItem.button else { return }
         let running = engine.runningProject
 
-        // SPEC §10: filled and red while a timer runs, an outline (template,
-        // so it follows the menu bar's own color) when idle.
+        // SPEC §10: filled and red while a timer runs, an outline when idle.
+        // Both are Chronos's own bolt (`Scripts/render-icons.swift`, the same
+        // outline as `BoltShape`) and both are *template* images, so they stay
+        // crisp against a light or dark menu bar and follow its vibrancy. Red
+        // comes from the button's tint rather than from a colored image, which
+        // would have to give up template rendering to get it.
         if running != nil {
-            let configuration = NSImage.SymbolConfiguration(paletteColors: [Palette.scarlet.nsColor])
-            let image = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: "Chronos: running")?
-                .withSymbolConfiguration(configuration)
-            image?.isTemplate = false
-            button.image = image
+            button.image = Self.image(named: "MenuBarBoltRunning", description: "Chronos: running")
+            button.contentTintColor = Palette.scarlet.nsColor
         } else {
-            let image = NSImage(systemSymbolName: "bolt", accessibilityDescription: "Chronos: not running")
-            image?.isTemplate = true
-            button.image = image
+            button.image = Self.image(named: "MenuBarBoltIdle", description: "Chronos: not running")
+            button.contentTintColor = nil
         }
 
         if let running, engine.settings.showElapsedInMenuBar {
@@ -85,6 +85,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             button.title = ""
             button.imagePosition = .imageOnly
         }
+    }
+
+    /// One of the catalog's menu bar bolts. The template rendering intent is
+    /// declared in the image set's `Contents.json`; only the VoiceOver label
+    /// has to be set here.
+    private static func image(named name: String, description: String) -> NSImage? {
+        let image = NSImage(named: name)
+        image?.accessibilityDescription = description
+        return image
     }
 
     // MARK: - Menu

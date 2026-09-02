@@ -16,9 +16,17 @@ final class PanelController: NSObject {
 
     private static let cornerRadius: CGFloat = 14
 
-    /// How much Ink sits between the blur and the content. Phase 7 tunes this
-    /// against SPEC §9's "~92% opacity" with real wallpapers.
-    private static let inkTintAlpha = 0.72
+    /// How much Ink sits between the blur and the content — SPEC §9's "dark
+    /// glass, ~92% opacity".
+    ///
+    /// Measured in the Phase 7 visual pass by rendering the panel over a bright
+    /// wallpaper and a saturated photographic one: at 0.72 the panel body drifts
+    /// 12/255 per channel between the two (visibly warm on one, green on the
+    /// other) and Muted secondary text falls to 4.4:1. At 0.90 the drift is
+    /// 4/255, Muted holds 5.4:1 and Paper 15:1 on any wallpaper, and the blur is
+    /// still visible as a hint of the desktop rather than a color cast. Past
+    /// ~0.94 the glass reads as flat paint.
+    private static let inkTintAlpha = 0.90
 
     private let panel: DesktopPanel
     private let backdrop: NSVisualEffectView

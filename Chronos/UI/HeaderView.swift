@@ -10,15 +10,28 @@ struct HeaderView: View {
     let calendar: Calendar
     /// Seconds tracked across every project so far today.
     let dayTotal: TimeInterval
+    /// Whether a session is open. Going from `false` to `true` flickers the
+    /// bolt (SPEC §9, "the bolt in the header does a quick flicker when a timer
+    /// starts").
+    let isRunning: Bool
+
+    /// The flicker, as opacities. First and last are opaque, so whichever phase
+    /// the animator rests on the bolt ends up solid.
+    private static let flickerPhases: [Double] = [1, 0.2, 1, 0.5, 1]
+    /// ~350ms all told, across the four transitions above.
+    private static let flickerStep: TimeInterval = 0.09
+
+    private static let markSize: CGFloat = 14
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Bumped once per start; never bumped under Reduce Motion, which leaves
+    /// the animator parked on the first (opaque) phase.
+    @State private var flickerCount = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
-                // Phase 7 swaps this SF Symbol for the custom BoltShape and
-                // gives it the start-of-timer flicker.
-                Image(systemName: "bolt.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.chronosScarlet)
+                bolt
 
                 Text("CHRONOS")
                     .font(.system(size: 12, weight: .semibold))
@@ -51,6 +64,25 @@ struct HeaderView: View {
         .contentShape(Rectangle())
         // Only the header moves the panel (SPEC §4).
         .overlay(DragHandleView())
+        .onChange(of: isRunning) { _, running in
+            guard running, !reduceMotion else { return }
+            flickerCount += 1
+        }
+    }
+
+    /// The Chronos mark: ``BoltShape`` filled Scarlet, sized to sit level with
+    /// the wordmark. The bolt's unit box carries its own side margins, so a
+    /// square frame draws a bolt narrower than it is tall.
+    private var bolt: some View {
+        BoltShape()
+            .fill(Color.chronosScarlet)
+            .frame(width: Self.markSize, height: Self.markSize)
+            .phaseAnimator(Self.flickerPhases, trigger: flickerCount) { view, opacity in
+                view.opacity(opacity)
+            } animation: { _ in
+                .linear(duration: Self.flickerStep)
+            }
+            .accessibilityHidden(true)
     }
 }
 

@@ -62,9 +62,12 @@ struct ProjectRowView: View {
                     .truncationMode(.tail)
 
                 if isActive {
-                    Image(systemName: "bolt.fill")
-                        .font(.system(size: 9))
-                        .foregroundStyle(accent)
+                    // Chronos's own mark, not an SF Symbol: two different bolts
+                    // in one panel read as a mistake.
+                    BoltShape()
+                        .fill(accent)
+                        .frame(width: 10, height: 10)
+                        .accessibilityHidden(true)
                 }
 
                 Spacer(minLength: 6)
@@ -101,7 +104,9 @@ struct ProjectRowView: View {
         } label: {
             Image(systemName: "ellipsis.circle")
                 .font(.system(size: 13, weight: .regular))
-                .foregroundStyle(Color.chronosPaper.opacity(0.75))
+                // Dim enough that four of them down the list do not compete
+                // with the project names and times for attention.
+                .foregroundStyle(Color.chronosPaper.opacity(0.5))
                 .frame(width: 20, height: 20)
                 .contentShape(Rectangle())
         }

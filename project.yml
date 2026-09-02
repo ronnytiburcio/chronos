@@ -41,6 +41,10 @@ targets:
       properties:
         CFBundleName: Chronos
         CFBundleDisplayName: Chronos
+        # ASSETCATALOG_COMPILER_APPICON_NAME compiles AppIcon.icns into the
+        # bundle, but it does not write the plist key that points at it.
+        CFBundleIconName: AppIcon
+        CFBundleIconFile: AppIcon
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSUIElement: true

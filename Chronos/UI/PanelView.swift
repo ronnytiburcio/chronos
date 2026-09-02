@@ -23,7 +23,8 @@ struct PanelView: View {
             HeaderView(
                 trackingDay: engine.lastRollover,
                 calendar: engine.trackingCalendar,
-                dayTotal: engine.dayTotal(asOf: engine.now)
+                dayTotal: engine.dayTotal(asOf: engine.now),
+                isRunning: engine.openSession != nil
             )
 
             divider
