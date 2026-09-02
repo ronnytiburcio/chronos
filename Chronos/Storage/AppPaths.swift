@@ -19,8 +19,19 @@ enum AppPaths {
         return directory
     }()
 
-    /// Small mutable app state (window frame today; rollover bookkeeping later).
+    /// Small mutable app state: window frame, last rollover, settings.
     static var stateFile: URL {
         appSupportDirectory.appendingPathComponent("state.json", isDirectory: false)
+    }
+
+    /// The project list, as a JSON array.
+    static var projectsFile: URL {
+        appSupportDirectory.appendingPathComponent("projects.json", isDirectory: false)
+    }
+
+    /// The append-only session log, one JSON object per line. Rotated yearly
+    /// to `sessions-YYYY.jsonl` alongside it.
+    static var sessionsFile: URL {
+        appSupportDirectory.appendingPathComponent("sessions.jsonl", isDirectory: false)
     }
 }

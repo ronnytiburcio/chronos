@@ -2,10 +2,11 @@ import AppKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let stateStore = AppStateStore()
-    private var state = AppState()
     private var menuBar: MenuBarController?
     private var panel: PanelController?
+    /// Built at launch rather than at init so the unit tests, which use this
+    /// app as their host, never touch the real Application Support folder.
+    private var engine: TimerEngine?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The unit tests use this app as their host; they must not put a panel
@@ -18,9 +19,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             togglePanel: { [weak self] in self?.panel?.toggle() }
         )
 
-        state = stateStore.load()
-        let panel = PanelController(savedFrame: state.windowFrame) { [weak self] frame in
-            self?.saveWindowFrame(frame)
+        // The engine is the single owner of `AppState`, the window frame
+        // included, so a frame save can never clobber the rollover
+        // bookkeeping or the settings sitting in the same file.
+        let engine = TimerEngine()
+        self.engine = engine
+
+        let panel = PanelController(engine: engine, savedFrame: engine.windowFrame) { frame in
+            engine.updateWindowFrame(frame)
         }
         panel.show()
         self.panel = panel
@@ -32,15 +38,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
-    }
-
-    private func saveWindowFrame(_ frame: CGRect) {
-        state.windowFrame = frame
-        do {
-            try stateStore.save(state)
-        } catch {
-            NSLog("Chronos: could not save the window position: \(error.localizedDescription)")
-        }
     }
 
     private static var isRunningUnitTests: Bool {

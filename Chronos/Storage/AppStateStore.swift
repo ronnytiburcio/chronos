@@ -1,18 +1,30 @@
 import Foundation
 
-/// Small mutable state that survives relaunches. Phase 3 adds the rollover
-/// bookkeeping; today it only remembers where the user parked the panel.
+/// Small mutable state that survives relaunches: where the user parked the
+/// panel, when the last rollover ran, and the settings.
+///
+/// Every key decodes with a default when it is missing, so a `state.json`
+/// written by an older build keeps loading.
 struct AppState: Codable, Equatable, Sendable {
     var windowFrame: CGRect?
+    /// The start of the tracking day currently on screen. Totals shown in the
+    /// panel are the sessions that started at or after it (SPEC §7); Phase 5
+    /// advances it when a rollover runs.
+    var lastRollover: Date?
+    var settings: Settings
 
-    init(windowFrame: CGRect? = nil) {
+    init(windowFrame: CGRect? = nil, lastRollover: Date? = nil, settings: Settings = Settings()) {
         self.windowFrame = windowFrame
+        self.lastRollover = lastRollover
+        self.settings = settings
     }
 
     // `CGRect`'s synthesized Codable writes nested arrays; the state file is
     // meant to be readable by people, so the frame is stored with named keys.
     private enum CodingKeys: String, CodingKey {
         case windowFrame
+        case lastRollover
+        case settings
     }
 
     private struct FrameRecord: Codable {
@@ -34,11 +46,15 @@ struct AppState: Codable, Equatable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         windowFrame = try container.decodeIfPresent(FrameRecord.self, forKey: .windowFrame)?.rect
+        lastRollover = try container.decodeIfPresent(Date.self, forKey: .lastRollover)
+        settings = try container.decodeIfPresent(Settings.self, forKey: .settings) ?? Settings()
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeIfPresent(windowFrame.map(FrameRecord.init), forKey: .windowFrame)
+        try container.encodeIfPresent(lastRollover, forKey: .lastRollover)
+        try container.encode(settings, forKey: .settings)
     }
 }
 

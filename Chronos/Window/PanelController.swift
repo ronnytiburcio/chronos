@@ -7,12 +7,12 @@ import SwiftUI
 ///
 /// Persistence is not this object's business: it receives the saved frame and
 /// hands frame changes to `onFrameChange`, so there is exactly one owner of the
-/// app state (`AppDelegate` today, the data store from Phase 3 on).
+/// app state (`TimerEngine`).
 @MainActor
 final class PanelController: NSObject {
     /// Placeholder size for this phase; Phase 4 grows the height with the
     /// project list.
-    static let panelSize = CGSize(width: 280, height: 320)
+    static let panelSize = CGSize(width: 280, height: 420)
 
     /// Debounce for frame-change reports, so a drag is one write and not one
     /// per mouse-moved event.
@@ -26,6 +26,7 @@ final class PanelController: NSObject {
 
     private let panel: DesktopPanel
     private let backdrop: NSVisualEffectView
+    private let engine: TimerEngine
     private let onFrameChange: (CGRect) -> Void
     private var lastReportedFrame: CGRect?
     private var frameSaveTask: Task<Void, Never>?
@@ -33,11 +34,13 @@ final class PanelController: NSObject {
     var isVisible: Bool { panel.isVisible }
 
     /// - Parameters:
+    ///   - engine: the running state the panel content reads from.
     ///   - savedFrame: the frame from the last run, if any. Only its origin is
     ///     honoured, and only if enough of it is still on a connected screen.
     ///   - onFrameChange: called (debounced) with the panel's frame whenever it
     ///     differs from the last one reported or restored.
-    init(savedFrame: CGRect?, onFrameChange: @escaping (CGRect) -> Void) {
+    init(engine: TimerEngine, savedFrame: CGRect?, onFrameChange: @escaping (CGRect) -> Void) {
+        self.engine = engine
         self.onFrameChange = onFrameChange
         self.lastReportedFrame = savedFrame
 
@@ -136,7 +139,7 @@ final class PanelController: NSObject {
         tint.autoresizingMask = [.width, .height]
         backdrop.addSubview(tint)
 
-        let hostingView = FirstMouseHostingView(rootView: PanelPlaceholderView())
+        let hostingView = FirstMouseHostingView(rootView: PanelPlaceholderView(engine: engine))
         hostingView.frame = backdrop.bounds
         hostingView.autoresizingMask = [.width, .height]
         backdrop.addSubview(hostingView)

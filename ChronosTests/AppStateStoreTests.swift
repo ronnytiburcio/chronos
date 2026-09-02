@@ -74,4 +74,74 @@ final class AppStateStoreTests: XCTestCase {
         XCTAssertTrue(json.contains("windowFrame"), json)
         XCTAssertTrue(json.contains("\"width\" : 280"), "frame should use named keys: \(json)")
     }
+
+    // MARK: - Rollover bookkeeping and settings
+
+    func testDefaultStateHasNoRolloverAndDefaultSettings() {
+        let state = AppState()
+
+        XCTAssertNil(state.lastRollover)
+        XCTAssertEqual(state.settings.rollover, RolloverTime(hour: 4, minute: 0))
+        XCTAssertFalse(state.settings.restartRunningProjectAfterRollover)
+        XCTAssertTrue(state.settings.launchAtLogin)
+        XCTAssertTrue(state.settings.writeMarkdownDailyNotes)
+        XCTAssertTrue(state.settings.showElapsedInMenuBar)
+        XCTAssertNil(state.settings.archiveFolderPath)
+    }
+
+    func testFullStateRoundTrip() throws {
+        var settings = Settings()
+        settings.rollover = RolloverTime(hour: 6, minute: 30)
+        settings.archiveFolderPath = "Chronos/Archive"
+        settings.launchAtLogin = false
+        settings.restartRunningProjectAfterRollover = true
+        settings.writeMarkdownDailyNotes = false
+        settings.showElapsedInMenuBar = false
+        let state = AppState(
+            windowFrame: CGRect(x: 12, y: 34, width: 280, height: 420),
+            lastRollover: Date(timeIntervalSince1970: 1_756_800_000),
+            settings: settings
+        )
+
+        try store.save(state)
+
+        XCTAssertEqual(store.load(), state)
+    }
+
+    /// A `state.json` from Phase 2 has only a window frame; it must keep
+    /// loading, with defaults filled in for everything added since.
+    func testStateFileWithOnlyAWindowFrameStillLoads() throws {
+        let legacy = """
+        { "windowFrame" : { "height" : 320, "width" : 280, "x" : 12, "y" : 34 } }
+        """
+        try Data(legacy.utf8).write(to: store.fileURL)
+
+        let state = store.load()
+
+        XCTAssertEqual(state.windowFrame, CGRect(x: 12, y: 34, width: 280, height: 320))
+        XCTAssertNil(state.lastRollover)
+        XCTAssertEqual(state.settings, Settings())
+    }
+
+    /// A partially written settings block picks up defaults for the rest
+    /// rather than failing the whole file.
+    func testPartialSettingsBlockFillsInDefaults() throws {
+        let partial = """
+        { "settings" : { "showElapsedInMenuBar" : false } }
+        """
+        try Data(partial.utf8).write(to: store.fileURL)
+
+        let settings = store.load().settings
+
+        XCTAssertFalse(settings.showElapsedInMenuBar)
+        XCTAssertEqual(settings.rollover, RolloverTime(hour: 4, minute: 0))
+        XCTAssertTrue(settings.launchAtLogin)
+    }
+
+    func testLastRolloverIsWrittenAsAnISO8601String() throws {
+        try store.save(AppState(lastRollover: Date(timeIntervalSince1970: 1_756_800_000)))
+
+        let json = try String(contentsOf: store.fileURL, encoding: .utf8)
+        XCTAssertTrue(json.contains("\"lastRollover\" : \"2025-09-02T08:00:00Z\""), json)
+    }
 }

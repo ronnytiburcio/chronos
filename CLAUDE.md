@@ -27,7 +27,7 @@ Chronos/App       entry, AppDelegate, MenuBarController
 Chronos/Window    DesktopPanel (NSPanel subclass), PanelController, FirstMouseHostingView, DragHandleView, WindowPlacement
 Chronos/Model     Project, Session, Settings, TrackingDay
 Chronos/Engine    TimerEngine, RolloverEngine, Clock (injectable now())
-Chronos/Storage   AppPaths, JSONFile, AppStateStore (state.json), AppDataStore (projects.json, sessions.jsonl), ArchiveWriter, Exporter
+Chronos/Storage   AppPaths, JSONFile, AppStateStore (state.json), ProjectStore (projects.json), SessionLog (sessions.jsonl), ArchiveWriter, Exporter
 Chronos/UI        Palette, SwiftUI views + BoltShape
 Chronos/Resources Assets.xcassets, generated Info.plist
 ChronosTests      XCTest
@@ -52,7 +52,11 @@ Scripts           render-icons.swift, make-dmg.sh
 - `WindowPlacement.resolvedFrame` honours the saved *origin* but always applies the caller's size, so a frame saved by an older build cannot resurrect a stale panel height.
 - `AppState.windowFrame` is encoded with named keys (`x`, `y`, `width`, `height`) via a custom `Codable`; `CGRect`'s synthesized Codable would write nested arrays.
 - `ChronosTests` uses the app as its test host. `AppDelegate` skips all setup when `XCTestConfigurationFilePath` is in the environment, so tests never show the panel or touch the real state file. Tests that touch storage still take an injected file URL and use a temp directory.
-- `AppDelegate` is the single owner of `AppState`; `PanelController` only receives the saved frame and reports changes through a closure. Keep it that way when Phase 3 adds fields.
+- **`TimerEngine` is the single owner of `AppState`** (window frame, `lastRollover`, `settings`) and the only writer of `state.json`. `AppDelegate` builds it at launch and hands its `windowFrame` to `PanelController`, whose frame-change closure calls `engine.updateWindowFrame(_:)`. One owner means a frame save can never clobber the rollover bookkeeping sitting in the same file — do not add a second writer.
+- `TimerEngine` takes `Clock`, `ProjectStore`, `SessionLog`, `AppStateStore`, and a `Calendar` in its init so tests run against temp dirs and a fake clock. Every mutation is write-through: it persists before the method returns.
+- The 1s ticker only runs while a session is open, and `tick()` re-reads `clock.now()` rather than accumulating, so sleep/wake stays correct. The `Timer` block must keep the `Timer` argument *outside* `MainActor.assumeIsolated` — `Timer` is not `Sendable` and passing it in is a Swift 6 concurrency error.
+- `SessionLog` replay is forgiving: a corrupt line, a `close` with no `open`, or a duplicate `open` is logged via `NSLog` and skipped, never thrown. `rotate(to:)` refuses to overwrite an existing archive.
+- Tests for `@MainActor` types override `setUp() async throws` / `tearDown() async throws`, not the `WithError` variants — only the async hooks inherit the class's actor isolation, otherwise every shared property is a concurrency warning.
 - `WindowPlacement` validates a saved frame against full screen frames (the user may park the panel under the Dock) and uses the main screen's `visibleFrame` only for first-launch placement.
 - All JSON goes through `JSONFile` (atomic `Data.write`, ISO-8601 dates, sorted keys). Colors come from `Palette` in `Chronos/UI/Palette.swift`.
 - Ad-hoc code signing (`CODE_SIGN_IDENTITY=-`) is required even for local runs: `SMAppService` login-item registration fails on unsigned binaries.
