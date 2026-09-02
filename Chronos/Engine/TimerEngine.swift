@@ -161,6 +161,12 @@ final class TimerEngine {
         projects.filter { !$0.isArchived }
     }
 
+    /// The other half of ``projects``: hidden from the panel, still listed in
+    /// Settings so they can be brought back.
+    var archivedProjects: [Project] {
+        projects.filter(\.isArchived)
+    }
+
     var runningProject: Project? {
         guard let projectID = openSession?.projectID else { return nil }
         return projects.first { $0.id == projectID }
@@ -553,6 +559,46 @@ final class TimerEngine {
         else { return }
         projects[index].isArchived = false
         persistProjects()
+    }
+
+    // MARK: - Settings
+
+    /// Changes the settings and writes them straight through, keeping this the
+    /// only writer of `state.json` (the window frame and `lastRollover` live in
+    /// the same file).
+    ///
+    /// Rearming the rollover timer is deliberately *not* done here: the engine
+    /// knows when the next boundary is but does not own the scheduler. The
+    /// returned value lets the caller compare `rollover` and call
+    /// ``RolloverScheduler/rearm()`` when it moved.
+    @discardableResult
+    func updateSettings(_ change: (inout Settings) -> Void) -> Settings {
+        var updated = state.settings
+        change(&updated)
+        guard updated != state.settings else { return updated }
+        state.settings = updated
+        persistState()
+        return updated
+    }
+
+    // MARK: - Export
+
+    /// The CSV behind Settings' Export button (SPEC §8), built from the whole
+    /// session history on disk rather than from memory, which a yearly rotation
+    /// has already trimmed.
+    func exportCSV(from: String, to: String) throws -> String {
+        try Exporter(
+            sessionsFileURL: sessionLog.fileURL,
+            calendar: calendar,
+            rollover: settings.rollover,
+            projects: projects
+        ).csv(from: from, to: to, asOf: clock.now())
+    }
+
+    /// The inclusive `yyyy-MM-dd` bounds a range resolves to right now — used
+    /// both for the export itself and for the file name it is offered under.
+    func exportBounds(for range: ExportRange) -> (from: String, to: String) {
+        range.bounds(asOf: clock.now(), rollover: settings.rollover, calendar: calendar)
     }
 
     // MARK: - Window frame

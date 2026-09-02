@@ -30,4 +30,14 @@ enum TimeFormatting {
         let total = Int(max(0, seconds))
         return String(format: "%d:%02d", total / 3600, (total % 3600) / 60)
     }
+
+    /// Decimal hours to two places — the `hours` column of both CSVs (SPEC
+    /// §8), for the spreadsheet that does not want to divide by 3600 itself.
+    ///
+    /// Shared by ``ArchiveWriter`` and ``Exporter`` so a rollover row and an
+    /// exported row for the same day can never round differently.
+    static func decimalHours(_ seconds: TimeInterval) -> String {
+        guard seconds.isFinite else { return "0.00" }
+        return String(format: "%.2f", max(0, seconds) / 3600)
+    }
 }

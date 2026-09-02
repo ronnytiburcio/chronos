@@ -84,9 +84,9 @@ struct ArchiveWriter: Sendable {
                 day.dateString,
                 total.name,
                 String(seconds),
-                // Hours to two decimals, for the spreadsheet that does not
-                // want to divide by 3600 itself.
-                String(format: "%.2f", Double(seconds) / 3600),
+                // Off the truncated seconds, not the raw interval, so the two
+                // columns always describe the same number.
+                TimeFormatting.decimalHours(Double(seconds)),
             ])
         }
     }
