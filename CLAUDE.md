@@ -21,6 +21,15 @@ open Chronos.xcodeproj
 ```
 Run the built app: `open "$(xcodebuild -project Chronos.xcodeproj -scheme Chronos -showBuildSettings | awk '/ BUILT_PRODUCTS_DIR/{print $3}')/Chronos.app"` (or Cmd-R in Xcode). Quit via the menu bar bolt -> Quit.
 
+## Release & CI
+- One workflow, `.github/workflows/build.yml` (name: **Build**), both jobs on `runs-on: macos-26`, Xcode pinned to `/Applications/Xcode_26.6.app` when it exists and the runner default otherwise.
+  - **`test`** — every push (branches and tags) and every pull request: `xcodebuild ... test`, then a grep for absolute home and volume paths over the repo, with one character of each needle bracketed so the workflow does not match its own pattern. Personal *names* are deliberately not in the public pattern (that would put them in the repo); check for them locally before pushing: `grep -rniE "<name>|<drive>" --exclude-dir=.git .`.
+  - **`release`** — tag push `v*`, `needs: test`, `permissions: contents: write`: universal Release build (`ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM=` into `-derivedDataPath build`), `lipo -info` gate that fails unless both arches are present, `codesign --force --deep --sign -`, `Scripts/make-dmg.sh` -> `dist/Chronos-<tag>.dmg`, `gh release create` with the CHANGELOG section for that version as the notes (`--prerelease` when the tag has a suffix such as `v0.1.0-rc1`).
+- **Cutting a release:** move the `## [Unreleased]` entries into a new `## [X.Y.Z] - YYYY-MM-DD` section in `CHANGELOG.md`, bump `MARKETING_VERSION` in `project.yml` and `xcodegen generate`, commit, then `git tag vX.Y.Z && git push origin vX.Y.Z`. The tag push is what builds and publishes; nothing else does.
+- **Optional Developer ID signing + notarization** is skipped unless the secrets exist. `if:` cannot read `secrets`, so a prior step writes `HAS_SIGNING` into `$GITHUB_ENV` and the notarize step keys off that. Secrets: `DEVELOPER_ID_CERTIFICATE_P12` (base64 of the .p12), `DEVELOPER_ID_CERTIFICATE_PASSWORD`, `DEVELOPER_ID_IDENTITY`, `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD`. Without them the release ships ad-hoc signed and the release notes carry the `xattr -d com.apple.quarantine` instructions.
+- `Scripts/make-dmg.sh <app> <out.dmg>` stages a temp folder (app + `Applications` symlink) and runs `hdiutil create -format UDZO`. No `create-dmg` dependency. Verified locally: universal 3.7M app, 1.5M `.dmg` that mounts with `Chronos.app` and `Applications`. `spctl --assess` says **rejected** on the ad-hoc build, which is expected and is exactly what the README's Gatekeeper section documents.
+- On macOS 27 beta `hdiutil create/attach/detach` print a deprecation warning and still work; `macos-26` does not.
+
 ## Layout
 ```
 Chronos/App       entry, AppDelegate, AppInfo, MenuBarController, LoginItem (SMAppService)
@@ -33,7 +42,8 @@ Chronos/UI        Palette, ProjectColor, TimeFormatting, PanelLayout, EscapeKeyM
 Chronos/Resources Assets.xcassets (AppIcon, AccentColor, MenuBarBoltIdle/Running template sets), generated Info.plist
 ChronosTests      XCTest
 Scripts           render-icons.swift, make-dmg.sh
-Assets            chronos-bolt.svg, icon-1024.png — README artwork, generated, never bundled
+Assets            chronos-bolt.svg, icon-1024.png, screenshot-panel.png — README artwork, generated, never bundled
+.github           workflows/build.yml, ISSUE_TEMPLATE/, PULL_REQUEST_TEMPLATE.md
 ```
 
 ## Conventions
@@ -95,4 +105,5 @@ Assets            chronos-bolt.svg, icon-1024.png — README artwork, generated,
 - The header bolt's start flicker is a `.phaseAnimator([1, 0.2, 1, 0.5, 1], trigger:)` driven by a counter that `.onChange(of: isRunning)` bumps — and never bumps under `accessibilityReduceMotion`, which parks the animator on the first (opaque) phase. First and last phases are both opaque so the bolt rests solid whichever phase the animator stops on. `HeaderView` takes `isRunning` as a parameter; `PanelView` passes `engine.openSession != nil`.
 - `PanelController.inkTintAlpha` is **0.90**, measured, not guessed: rendering the panel over a bright and a saturated photographic wallpaper, 0.72 let the body drift 12/255 per channel between them (a visible color cast) with Muted text at 4.4:1, while 0.90 holds the drift to 4/255, Muted at 5.4:1 and Paper at 15:1, and still shows the desktop as a hint. Past ~0.94 the glass reads as flat paint.
 - Screen capture may be unavailable to command-line tools on this machine: `CGGetActiveDisplayList` and `SCShareableContent.displays` both come back **empty** (window metadata and titles still list fine, and `CGPreflightScreenCaptureAccess()` returns true), so `screencapture` fails with "could not create image from rect" and the ScreenCaptureKit path from Phase 4 no longer works. To see the panel over a wallpaper, render it offscreen in a throwaway XCTest instead: an `NSImageView` with a wallpaper, an `NSVisualEffectView(.hudWindow)` in **`.withinWindow`** blending (which blurs the sibling behind it, standing in for `.behindWindow`'s compositor blur), the Ink tint, and an `NSHostingView(PanelView(...))` — then `cacheDisplay(in:to:)`. Note `xcodebuild` does not forward the shell environment to the test process, so such a scratch test has to hardcode its paths.
+- **A test host cannot write into this repo.** `Data.write` from the XCTest process to a path on the external volume blocks forever inside `open()` (sampled: stuck in `__open`). Offscreen renders have to be written under `/private/tmp` and copied into `Assets/` from the shell afterwards. `Assets/screenshot-panel.png` (720x664, the panel at 2x over a generated dark gradient) was made that way with a throwaway `ScratchScreenshotTests`, deleted after; a custom `NSBitmapImageRep` at 2x pixel dimensions with `rep.size` left at the point size renders correctly through `cacheDisplay(in:to:)`, so 2x does not need a retina window.
 - To eyeball a SwiftUI window without screen-recording access, render it offscreen instead of using `screencapture`: an `NSHostingView` in a plain `NSWindow`, `layoutSubtreeIfNeeded()`, spin `RunLoop.main` for a second, then `cacheDisplay(in:to:)` into a `bitmapImageRepForCachingDisplay`. Give it the full natural height (~1500pt) to see past the `Form`'s own scrolling.

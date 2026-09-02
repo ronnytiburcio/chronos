@@ -1,0 +1,212 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          if [ -d /Applications/Xcode_26.6.app ]; then
+            sudo xcode-select -s /Applications/Xcode_26.6.app
+          else
+            echo "Xcode_26.6 not installed; using the runner default."
+          fi
+          xcodebuild -version
+
+      - name: Build and test
+        run: |
+          set -euo pipefail
+          xcodebuild -project Chronos.xcodeproj -scheme Chronos -destination 'platform=macOS' test
+
+      # SPEC §11: no absolute paths (and so no usernames or volume names) in
+      # the repo. One character is bracketed so this file does not match its
+      # own pattern (the `grep [f]oo` idiom); the regex is unchanged by it.
+      - name: Check for absolute paths
+        run: |
+          set -euo pipefail
+          if grep -rnE "/Users[/]|/Volumes[/]" \
+              --exclude-dir=.git \
+              --exclude-dir=Chronos.xcodeproj \
+              . ; then
+            echo "::error::Absolute paths found in the repository (see the matches above)."
+            exit 1
+          fi
+          echo "No absolute paths found."
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: macos-26
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          set -euo pipefail
+          if [ -d /Applications/Xcode_26.6.app ]; then
+            sudo xcode-select -s /Applications/Xcode_26.6.app
+          else
+            echo "Xcode_26.6 not installed; using the runner default."
+          fi
+          xcodebuild -version
+
+      # Ad-hoc signed, not unsigned: SMAppService refuses to register a login
+      # item for a binary with no signature at all.
+      - name: Build universal Release
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project Chronos.xcodeproj \
+            -scheme Chronos \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY=- \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM= \
+            build
+
+      - name: Verify the binary is universal
+        run: |
+          set -euo pipefail
+          APP="build/Build/Products/Release/Chronos.app"
+          test -d "$APP" || { echo "::error::No app bundle at $APP"; exit 1; }
+          ARCHS="$(lipo -info "$APP/Contents/MacOS/Chronos")"
+          echo "$ARCHS"
+          if ! grep -q "arm64" <<<"$ARCHS" || ! grep -q "x86_64" <<<"$ARCHS"; then
+            echo "::error::Expected a universal binary (arm64 + x86_64)."
+            exit 1
+          fi
+          echo "APP_PATH=$APP" >> "$GITHUB_ENV"
+
+      - name: Ad-hoc sign
+        run: |
+          set -euo pipefail
+          codesign --force --deep --sign - "$APP_PATH"
+          codesign --verify --verbose=2 "$APP_PATH"
+
+      # `if:` cannot read `secrets`, so the decision is turned into an env var
+      # here and the optional step keys off that.
+      - name: Check for Developer ID signing secrets
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 }}
+        run: |
+          set -euo pipefail
+          if [ -n "$P12" ]; then
+            echo "HAS_SIGNING=true" >> "$GITHUB_ENV"
+          else
+            echo "HAS_SIGNING=false" >> "$GITHUB_ENV"
+            echo "No Developer ID secrets set; shipping the ad-hoc signed build."
+          fi
+
+      - name: Sign and notarize with Developer ID
+        if: ${{ env.HAS_SIGNING == 'true' }}
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_CERTIFICATE_P12 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.DEVELOPER_ID_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/chronos-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          CERT="$RUNNER_TEMP/developer-id.p12"
+          # Key material never outlives this step, whichever way it exits.
+          trap 'rm -f "$CERT"; security delete-keychain "$KEYCHAIN" 2>/dev/null || true' EXIT
+
+          echo "$P12" | base64 --decode > "$CERT"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT" -k "$KEYCHAIN" -P "$P12_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+          codesign --force --deep --options runtime --timestamp \
+            --keychain "$KEYCHAIN" \
+            --sign "$SIGNING_IDENTITY" "$APP_PATH"
+          codesign --verify --strict --verbose=2 "$APP_PATH"
+
+          ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/Chronos-notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/Chronos-notarize.zip" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --wait
+          xcrun stapler staple "$APP_PATH"
+
+      - name: Package the disk image
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "DMG_PATH=dist/Chronos-$TAG.dmg" >> "$GITHUB_ENV"
+          Scripts/make-dmg.sh "$APP_PATH" "dist/Chronos-$TAG.dmg"
+
+      # The section of CHANGELOG.md for this version, if there is one.
+      - name: Build release notes
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          awk -v version="$VERSION" '
+            $0 ~ "^## \\[" version "\\]" { printing = 1; next }
+            printing && /^## / { exit }
+            printing { print }
+          ' CHANGELOG.md > "$NOTES"
+          if [ ! -s "$NOTES" ]; then
+            {
+              echo "Chronos $TAG."
+              echo
+              echo "See CHANGELOG.md for the full list of changes."
+            } > "$NOTES"
+          fi
+          if [ "${HAS_SIGNING}" != "true" ]; then
+            {
+              echo
+              echo "---"
+              echo
+              echo "This build is ad-hoc signed and not notarized. On first launch,"
+              echo "right-click Chronos.app and choose Open, or run:"
+              echo
+              echo '```'
+              echo "xattr -d com.apple.quarantine /Applications/Chronos.app"
+              echo '```'
+            } >> "$NOTES"
+          fi
+          echo "NOTES_PATH=$NOTES" >> "$GITHUB_ENV"
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # A tag with a suffix (v0.1.0-rc1) is a pre-release.
+          PRERELEASE=()
+          case "$TAG" in *-*) PRERELEASE=(--prerelease) ;; esac
+          gh release create "$TAG" "$DMG_PATH" \
+            --title "Chronos $TAG" \
+            --notes-file "$NOTES_PATH" \
+            "${PRERELEASE[@]}"
