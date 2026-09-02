@@ -27,8 +27,8 @@ Chronos/App       entry, AppDelegate, MenuBarController
 Chronos/Window    DesktopPanel (NSPanel subclass), PanelController, FirstMouseHostingView, DragHandleView, WindowPlacement
 Chronos/Model     Project, Session, Settings, TrackingDay
 Chronos/Engine    TimerEngine, RolloverEngine, Clock (injectable now())
-Chronos/Storage   AppPaths, AppStateStore (state.json), AppDataStore (projects.json, sessions.jsonl), ArchiveWriter, Exporter
-Chronos/UI        SwiftUI views + BoltShape
+Chronos/Storage   AppPaths, JSONFile, AppStateStore (state.json), AppDataStore (projects.json, sessions.jsonl), ArchiveWriter, Exporter
+Chronos/UI        Palette, SwiftUI views + BoltShape
 Chronos/Resources Assets.xcassets, generated Info.plist
 ChronosTests      XCTest
 Scripts           render-icons.swift, make-dmg.sh
@@ -50,8 +50,11 @@ Scripts           render-icons.swift, make-dmg.sh
 - The panel's content view is the `NSVisualEffectView`; the hosting view is its subview. Rounded corners live on the effect view's layer (`cornerRadius` + `masksToBounds`), which is also what gives the window a rounded shadow.
 - `.hudWindow` follows the *system* appearance, so the panel pins `appearance = NSAppearance(named: .darkAqua)` and adds an Ink `#15171C` tint view between the material and the hosting view. Without both, the panel reads as light grey glass on a light wallpaper and SPEC §9's Paper text is unreadable.
 - `WindowPlacement.resolvedFrame` honours the saved *origin* but always applies the caller's size, so a frame saved by an older build cannot resurrect a stale panel height.
-- `AppState.windowFrame` is a `CGRect`, whose synthesised `Codable` writes nested arrays (`[[x,y],[w,h]]`), not named keys. Fine to read, just not self-describing.
-- `ChronosTests` uses the app as its test host, so launching the test suite runs `AppDelegate` and writes the real `~/Library/Application Support/Chronos/state.json`. Tests that touch storage must take an injected file URL (`AppStateStore(fileURL:)`) and use a temp directory.
+- `AppState.windowFrame` is encoded with named keys (`x`, `y`, `width`, `height`) via a custom `Codable`; `CGRect`'s synthesized Codable would write nested arrays.
+- `ChronosTests` uses the app as its test host. `AppDelegate` skips all setup when `XCTestConfigurationFilePath` is in the environment, so tests never show the panel or touch the real state file. Tests that touch storage still take an injected file URL and use a temp directory.
+- `AppDelegate` is the single owner of `AppState`; `PanelController` only receives the saved frame and reports changes through a closure. Keep it that way when Phase 3 adds fields.
+- `WindowPlacement` validates a saved frame against full screen frames (the user may park the panel under the Dock) and uses the main screen's `visibleFrame` only for first-launch placement.
+- All JSON goes through `JSONFile` (atomic `Data.write`, ISO-8601 dates, sorted keys). Colors come from `Palette` in `Chronos/UI/Palette.swift`.
 - Ad-hoc code signing (`CODE_SIGN_IDENTITY=-`) is required even for local runs: `SMAppService` login-item registration fails on unsigned binaries.
 - Writing to `~/Documents` triggers a one-time TCC prompt; `NSDocumentsFolderUsageDescription` is set in `project.yml`.
 - `CGWindowListCreateImage` is obsoleted (macOS 15+); to screenshot the panel over the wallpaper, use ScreenCaptureKit with an `SCContentFilter` that excludes windows with `windowLayer >= 0`.

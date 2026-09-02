@@ -2,11 +2,13 @@ import CoreGraphics
 
 /// Pure geometry for deciding where the panel opens.
 ///
-/// Kept free of AppKit so it can be unit tested without a screen: the caller
-/// passes the rectangles it wants the panel to live inside (Chronos passes the
-/// `visibleFrame` of each `NSScreen`, main screen first).
+/// Kept free of AppKit so it can be unit tested without a screen. The caller
+/// passes the full frame of every screen (a saved position is kept as long as
+/// enough of the panel is on *some* screen, Dock and menu bar included, since
+/// the user may have parked it there on purpose) and the area to use for the
+/// first-launch placement (the main screen's `visibleFrame`).
 enum WindowPlacement {
-    /// Gap between the panel and the screen edges on first launch.
+    /// Gap between the panel and the placement area's edges on first launch.
     static let defaultMargin: CGFloat = 24
 
     /// How much of the panel has to stay on a screen for a saved frame to be
@@ -20,14 +22,19 @@ enum WindowPlacement {
     /// The saved *origin* is honoured but the caller's `size` always wins, so a
     /// frame written by an older build (or before the project list changed the
     /// panel's height) can never resurrect a stale size.
-    static func resolvedFrame(saved: CGRect?, size: CGSize, screens: [CGRect]) -> CGRect {
+    static func resolvedFrame(
+        saved: CGRect?,
+        size: CGSize,
+        screens: [CGRect],
+        placementArea: CGRect?
+    ) -> CGRect {
         if let saved {
             let candidate = CGRect(origin: saved.origin, size: size)
             if isSufficientlyVisible(candidate, on: screens) {
                 return candidate
             }
         }
-        return defaultFrame(size: size, on: screens.first)
+        return defaultFrame(size: size, on: placementArea)
     }
 
     /// True when `frame` overlaps at least one screen by
@@ -42,14 +49,14 @@ enum WindowPlacement {
         }
     }
 
-    /// Top-right of the given screen rect, inset by ``defaultMargin``.
+    /// Top-right of the given area, inset by ``defaultMargin``.
     /// Coordinates are Cocoa's (origin bottom-left).
-    static func defaultFrame(size: CGSize, on screen: CGRect?) -> CGRect {
-        guard let screen, !screen.isEmpty else {
+    static func defaultFrame(size: CGSize, on area: CGRect?) -> CGRect {
+        guard let area, !area.isEmpty else {
             return CGRect(origin: .zero, size: size)
         }
-        let x = max(screen.minX, screen.maxX - defaultMargin - size.width)
-        let y = max(screen.minY, screen.maxY - defaultMargin - size.height)
+        let x = max(area.minX, area.maxX - defaultMargin - size.width)
+        let y = max(area.minY, area.maxY - defaultMargin - size.height)
         return CGRect(x: x, y: y, width: size.width, height: size.height)
     }
 }

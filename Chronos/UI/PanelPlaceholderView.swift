@@ -78,19 +78,3 @@ struct PanelPlaceholderView: View {
             }
     }
 }
-
-/// Palette from SPEC §9. Phase 7 does the real visual pass.
-extension Color {
-    /// Paper `#F4F5F7` — primary text.
-    static let chronosPaper = Color(red: 244 / 255, green: 245 / 255, blue: 247 / 255)
-    /// Scarlet `#D7262F` — active state and accents.
-    static let chronosScarlet = Color(red: 215 / 255, green: 38 / 255, blue: 47 / 255)
-    /// Muted `#8C93A1` — secondary text.
-    static let chronosMuted = Color(red: 140 / 255, green: 147 / 255, blue: 161 / 255)
-}
-
-#Preview {
-    PanelPlaceholderView()
-        .frame(width: 280, height: 320)
-        .background(Color(red: 21 / 255, green: 23 / 255, blue: 28 / 255))
-}

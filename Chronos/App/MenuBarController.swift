@@ -2,14 +2,19 @@ import AppKit
 
 /// Owns the menu bar status item. Phase 2 ships the panel toggle and Quit;
 /// later phases add the current project, quick-start list, and settings.
+///
+/// It talks to the panel through closures so it can be created *before* the
+/// panel exists: the menu carries Quit, the only way out of a Dock-less agent.
 @MainActor
 final class MenuBarController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
-    private let panelController: PanelController
+    private let isPanelVisible: () -> Bool
+    private let togglePanel: () -> Void
     private let toggleItem: NSMenuItem
 
-    init(panelController: PanelController) {
-        self.panelController = panelController
+    init(isPanelVisible: @escaping () -> Bool, togglePanel: @escaping () -> Void) {
+        self.isPanelVisible = isPanelVisible
+        self.togglePanel = togglePanel
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         toggleItem = NSMenuItem(title: "Hide Panel", action: nil, keyEquivalent: "")
         super.init()
@@ -26,7 +31,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.delegate = self
 
         toggleItem.target = self
-        toggleItem.action = #selector(togglePanel)
+        toggleItem.action = #selector(togglePanelAction)
         menu.addItem(toggleItem)
 
         menu.addItem(.separator())
@@ -42,10 +47,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
-        toggleItem.title = panelController.isVisible ? "Hide Panel" : "Show Panel"
+        toggleItem.title = isPanelVisible() ? "Hide Panel" : "Show Panel"
     }
 
-    @objc private func togglePanel() {
-        panelController.toggle()
+    @objc private func togglePanelAction() {
+        togglePanel()
     }
 }

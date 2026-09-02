@@ -22,7 +22,6 @@ final class AppStateStoreTests: XCTestCase {
 
     func testMissingFileLoadsDefaultState() {
         XCTAssertEqual(store.load(), AppState())
-        XCTAssertNil(store.load().windowFrame)
     }
 
     func testRoundTrip() throws {
@@ -73,5 +72,6 @@ final class AppStateStoreTests: XCTestCase {
 
         let json = try String(contentsOf: store.fileURL, encoding: .utf8)
         XCTAssertTrue(json.contains("windowFrame"), json)
+        XCTAssertTrue(json.contains("\"width\" : 280"), "frame should use named keys: \(json)")
     }
 }

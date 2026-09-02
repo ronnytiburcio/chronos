@@ -2,39 +2,50 @@ import AppKit
 import SwiftUI
 
 /// Owns the desktop panel: builds it, installs its glass background and the
-/// SwiftUI content, restores the saved position and writes it back when the
-/// user drags the panel somewhere else.
+/// SwiftUI content, restores the saved position and reports it back (debounced)
+/// when the user drags the panel somewhere else.
+///
+/// Persistence is not this object's business: it receives the saved frame and
+/// hands frame changes to `onFrameChange`, so there is exactly one owner of the
+/// app state (`AppDelegate` today, the data store from Phase 3 on).
 @MainActor
 final class PanelController: NSObject {
     /// Placeholder size for this phase; Phase 4 grows the height with the
     /// project list.
     static let panelSize = CGSize(width: 280, height: 320)
 
-    /// Debounce for the frame writes, so a drag is one write and not one per
-    /// mouse-moved event.
+    /// Debounce for frame-change reports, so a drag is one write and not one
+    /// per mouse-moved event.
     private static let frameSaveDelay = Duration.milliseconds(500)
 
     private static let cornerRadius: CGFloat = 14
 
-    /// Ink `#15171C` from SPEC §9, translucent so the blur still reads.
-    private static let inkTint = CGColor(red: 21 / 255, green: 23 / 255, blue: 28 / 255, alpha: 0.72)
+    /// How much Ink sits between the blur and the content. Phase 7 tunes this
+    /// against SPEC §9's "~92% opacity" with real wallpapers.
+    private static let inkTintAlpha = 0.72
 
-    private let store: AppStateStore
-    private var state: AppState
     private let panel: DesktopPanel
     private let backdrop: NSVisualEffectView
+    private let onFrameChange: (CGRect) -> Void
+    private var lastReportedFrame: CGRect?
     private var frameSaveTask: Task<Void, Never>?
 
     var isVisible: Bool { panel.isVisible }
 
-    init(store: AppStateStore = AppStateStore()) {
-        self.store = store
-        self.state = store.load()
+    /// - Parameters:
+    ///   - savedFrame: the frame from the last run, if any. Only its origin is
+    ///     honoured, and only if enough of it is still on a connected screen.
+    ///   - onFrameChange: called (debounced) with the panel's frame whenever it
+    ///     differs from the last one reported or restored.
+    init(savedFrame: CGRect?, onFrameChange: @escaping (CGRect) -> Void) {
+        self.onFrameChange = onFrameChange
+        self.lastReportedFrame = savedFrame
 
         let frame = WindowPlacement.resolvedFrame(
-            saved: state.windowFrame,
+            saved: savedFrame,
             size: Self.panelSize,
-            screens: Self.screenRects()
+            screens: NSScreen.screens.map(\.frame),
+            placementArea: (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame
         )
 
         // `.nonactivatingPanel` has to be in the style mask here and must never
@@ -45,16 +56,15 @@ final class PanelController: NSObject {
             backing: .buffered,
             defer: false
         )
-
         backdrop = NSVisualEffectView(frame: CGRect(origin: .zero, size: frame.size))
         super.init()
 
         configurePanel()
         installContent()
-        // The first-launch placement is state too: persist it so the panel does
-        // not wander if the display arrangement changes before the first drag.
-        persistFrame()
         observeNotifications()
+        // The first-launch placement is state too; report it so the panel does
+        // not wander if the display arrangement changes before the first drag.
+        scheduleFrameSave()
     }
 
     deinit {
@@ -77,6 +87,14 @@ final class PanelController: NSObject {
         if isVisible { hide() } else { show() }
     }
 
+    /// Reports a pending frame change immediately. Call before the app quits so
+    /// a drag in the last half second is not lost.
+    func flushPendingFrameSave() {
+        frameSaveTask?.cancel()
+        frameSaveTask = nil
+        reportFrameIfChanged()
+    }
+
     // MARK: - Panel construction
 
     private func configurePanel() {
@@ -92,14 +110,17 @@ final class PanelController: NSObject {
         // Only the header drags the panel; see DragHandleView.
         panel.isMovableByWindowBackground = false
         panel.becomesKeyOnlyIfNeeded = true
-        panel.isReleasedWhenClosed = false
-        // SPEC §9: Chronos is dark by default. Without this the `.hudWindow`
-        // material follows the system appearance and turns into light glass,
-        // which the Paper-on-Ink palette is not readable on.
-        panel.appearance = NSAppearance(named: .darkAqua)
     }
 
+    /// Builds the dark-glass backdrop and puts the SwiftUI content on top.
+    ///
+    /// "Dark glass" is two settings that only work together, so they live in
+    /// one place: the `.darkAqua` appearance stops `.hudWindow` from following
+    /// the system appearance (light glass on a light desktop), and the Ink tint
+    /// darkens the blur to SPEC §9's panel color while letting it show through.
     private func installContent() {
+        panel.appearance = NSAppearance(named: .darkAqua)
+
         backdrop.material = .hudWindow
         backdrop.blendingMode = .behindWindow
         backdrop.state = .active
@@ -109,11 +130,9 @@ final class PanelController: NSObject {
         backdrop.layer?.masksToBounds = true
         backdrop.autoresizingMask = [.width, .height]
 
-        // The material alone follows the wallpaper's brightness; SPEC §9 wants
-        // Ink dark glass, so tint it and keep the blur showing through.
         let tint = NSView(frame: backdrop.bounds)
         tint.wantsLayer = true
-        tint.layer?.backgroundColor = Self.inkTint
+        tint.layer?.backgroundColor = Palette.ink.cgColor(alpha: Self.inkTintAlpha)
         tint.autoresizingMask = [.width, .height]
         backdrop.addSubview(tint)
 
@@ -135,7 +154,7 @@ final class PanelController: NSObject {
             object: panel
         )
         // The behind-window blur can go stale after sleep or a Space switch;
-        // re-poking it costs nothing and keeps the glass from turning flat.
+        // re-poking its state costs nothing and keeps the glass from going flat.
         let workspaceCenter = NSWorkspace.shared.notificationCenter
         workspaceCenter.addObserver(
             self,
@@ -156,38 +175,24 @@ final class PanelController: NSObject {
     }
 
     @objc private func refreshBackdrop(_ notification: Notification) {
-        guard isVisible else { return }
         backdrop.state = .active
-        panel.orderFrontRegardless()
     }
 
-    // MARK: - Frame persistence
+    // MARK: - Frame reporting
 
     private func scheduleFrameSave() {
         frameSaveTask?.cancel()
         frameSaveTask = Task { [weak self] in
             try? await Task.sleep(for: Self.frameSaveDelay)
             guard !Task.isCancelled else { return }
-            self?.persistFrame()
+            self?.reportFrameIfChanged()
         }
     }
 
-    private func persistFrame() {
+    private func reportFrameIfChanged() {
         let frame = panel.frame
-        guard state.windowFrame != frame else { return }
-        state.windowFrame = frame
-        do {
-            try store.save(state)
-        } catch {
-            NSLog("Chronos: could not save the window position: \(error.localizedDescription)")
-        }
-    }
-
-    /// Screen rectangles the panel may live in, main screen first so it is the
-    /// one used for the first-launch placement.
-    private static func screenRects() -> [CGRect] {
-        let screens = NSScreen.screens
-        guard let main = NSScreen.main else { return screens.map(\.visibleFrame) }
-        return [main.visibleFrame] + screens.filter { $0 !== main }.map(\.visibleFrame)
+        guard lastReportedFrame != frame else { return }
+        lastReportedFrame = frame
+        onFrameChange(frame)
     }
 }
