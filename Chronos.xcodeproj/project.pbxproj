@@ -7,11 +7,21 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		15CA3655F1796795E68EBE30 /* WindowPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D61EE04AF92136EFA6E772CB /* WindowPlacementTests.swift */; };
+		190D804D2284B27141149A36 /* PanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A21E0041D98ACE2DC1074351 /* PanelController.swift */; };
+		1EC928319584BEB7E6E4E9FE /* AppStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1176F0ECACA0C8725C9FD9 /* AppStateStore.swift */; };
 		3B54BDF040A8DC34B676B63E /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91DC75B660B104A26724BEC1 /* MenuBarController.swift */; };
+		3F28DFF162C8E7DDDC650A8A /* FirstMouseHostingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF06DF3E961E29EF3849DCE5 /* FirstMouseHostingView.swift */; };
+		44B528B5DD8AD3C873F29979 /* DesktopPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 321531D26236214E7C9F13F2 /* DesktopPanel.swift */; };
 		46F6541872069F852A1E1702 /* AppInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6972E5D1FBCCFD9244F3D2D /* AppInfo.swift */; };
+		570453A6EB62F99C20F7450E /* AppStateStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C348482826F44095F6BFB308 /* AppStateStoreTests.swift */; };
 		60D051FE66C8FF7EA1425F26 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 7C64C65D013680B18B182219 /* Assets.xcassets */; };
+		68ED4594EE5409AF0FC48685 /* DragHandleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FBC547C53A9FC4D3150B9BE /* DragHandleView.swift */; };
+		6AF9B6D40B1C53FEAC1687BB /* WindowPlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D6251E7AA25F5E12C3CDE97 /* WindowPlacement.swift */; };
 		7337A848613E4B854BD5CCED /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFC004726E7835495A3713EE /* AppDelegate.swift */; };
+		8231F49A9252B2CF8B5598E4 /* AppPaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9DE8C2EA1479FF4D2521770 /* AppPaths.swift */; };
 		AA6A30DEFE623D6DDDEA9376 /* ChronosApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145B805DB178287DD8009EB4 /* ChronosApp.swift */; };
+		BCBDFDB1458DC1F1D0F39790 /* PanelPlaceholderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7CDE99BB3C116B1BFEF712 /* PanelPlaceholderView.swift */; };
 		C7919C23EBE5C478155DF1DA /* AppInfoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B2E7FEF87AD3378525B4FE0 /* AppInfoTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -26,15 +36,25 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0D6251E7AA25F5E12C3CDE97 /* WindowPlacement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowPlacement.swift; sourceTree = "<group>"; };
 		145B805DB178287DD8009EB4 /* ChronosApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChronosApp.swift; sourceTree = "<group>"; };
+		321531D26236214E7C9F13F2 /* DesktopPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopPanel.swift; sourceTree = "<group>"; };
 		4E1975A24B11F75885C1C9DF /* Chronos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Chronos.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		608E08E79B550E22094B1A9D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		6FBC547C53A9FC4D3150B9BE /* DragHandleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragHandleView.swift; sourceTree = "<group>"; };
 		7A106CA127562905F7FB7CCB /* ChronosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ChronosTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C64C65D013680B18B182219 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		91DC75B660B104A26724BEC1 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
 		9B2E7FEF87AD3378525B4FE0 /* AppInfoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInfoTests.swift; sourceTree = "<group>"; };
+		A21E0041D98ACE2DC1074351 /* PanelController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelController.swift; sourceTree = "<group>"; };
+		BC7CDE99BB3C116B1BFEF712 /* PanelPlaceholderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPlaceholderView.swift; sourceTree = "<group>"; };
+		BF06DF3E961E29EF3849DCE5 /* FirstMouseHostingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstMouseHostingView.swift; sourceTree = "<group>"; };
+		C348482826F44095F6BFB308 /* AppStateStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateStoreTests.swift; sourceTree = "<group>"; };
+		D61EE04AF92136EFA6E772CB /* WindowPlacementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowPlacementTests.swift; sourceTree = "<group>"; };
 		D6972E5D1FBCCFD9244F3D2D /* AppInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppInfo.swift; sourceTree = "<group>"; };
 		DFC004726E7835495A3713EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		F9DE8C2EA1479FF4D2521770 /* AppPaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPaths.swift; sourceTree = "<group>"; };
+		FF1176F0ECACA0C8725C9FD9 /* AppStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStateStore.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -42,6 +62,8 @@
 			isa = PBXGroup;
 			children = (
 				9B2E7FEF87AD3378525B4FE0 /* AppInfoTests.swift */,
+				C348482826F44095F6BFB308 /* AppStateStoreTests.swift */,
+				D61EE04AF92136EFA6E772CB /* WindowPlacementTests.swift */,
 			);
 			path = ChronosTests;
 			sourceTree = "<group>";
@@ -90,6 +112,11 @@
 		74E41250BE509AA8101AB47B /* Window */ = {
 			isa = PBXGroup;
 			children = (
+				321531D26236214E7C9F13F2 /* DesktopPanel.swift */,
+				6FBC547C53A9FC4D3150B9BE /* DragHandleView.swift */,
+				BF06DF3E961E29EF3849DCE5 /* FirstMouseHostingView.swift */,
+				A21E0041D98ACE2DC1074351 /* PanelController.swift */,
+				0D6251E7AA25F5E12C3CDE97 /* WindowPlacement.swift */,
 			);
 			path = Window;
 			sourceTree = "<group>";
@@ -122,6 +149,7 @@
 		C705F38B202BDC3992E0AC55 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				BC7CDE99BB3C116B1BFEF712 /* PanelPlaceholderView.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -129,6 +157,8 @@
 		CC0D4D0EACB7E149D9507F43 /* Storage */ = {
 			isa = PBXGroup;
 			children = (
+				F9DE8C2EA1479FF4D2521770 /* AppPaths.swift */,
+				FF1176F0ECACA0C8725C9FD9 /* AppStateStore.swift */,
 			);
 			path = Storage;
 			sourceTree = "<group>";
@@ -228,6 +258,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				C7919C23EBE5C478155DF1DA /* AppInfoTests.swift in Sources */,
+				570453A6EB62F99C20F7450E /* AppStateStoreTests.swift in Sources */,
+				15CA3655F1796795E68EBE30 /* WindowPlacementTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -237,8 +269,16 @@
 			files = (
 				7337A848613E4B854BD5CCED /* AppDelegate.swift in Sources */,
 				46F6541872069F852A1E1702 /* AppInfo.swift in Sources */,
+				8231F49A9252B2CF8B5598E4 /* AppPaths.swift in Sources */,
+				1EC928319584BEB7E6E4E9FE /* AppStateStore.swift in Sources */,
 				AA6A30DEFE623D6DDDEA9376 /* ChronosApp.swift in Sources */,
+				44B528B5DD8AD3C873F29979 /* DesktopPanel.swift in Sources */,
+				68ED4594EE5409AF0FC48685 /* DragHandleView.swift in Sources */,
+				3F28DFF162C8E7DDDC650A8A /* FirstMouseHostingView.swift in Sources */,
 				3B54BDF040A8DC34B676B63E /* MenuBarController.swift in Sources */,
+				190D804D2284B27141149A36 /* PanelController.swift in Sources */,
+				BCBDFDB1458DC1F1D0F39790 /* PanelPlaceholderView.swift in Sources */,
+				6AF9B6D40B1C53FEAC1687BB /* WindowPlacement.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
