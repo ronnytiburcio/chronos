@@ -176,7 +176,9 @@ final class TimerEngine {
         }
         guard openSession?.projectID != projectID else { return }
 
-        let instant = clock.now()
+        // A clock that jumped backwards past the rollover must not start a
+        // session that today's totals would then ignore.
+        let instant = max(clock.now(), lastRollover)
         if let open = openSession {
             close(open, at: instant)
         }

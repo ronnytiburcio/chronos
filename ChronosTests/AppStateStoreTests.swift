@@ -55,6 +55,14 @@ final class AppStateStoreTests: XCTestCase {
         XCTAssertEqual(contents, ["state.json"])
     }
 
+    func testLastRolloverKeepsFractionalSeconds() throws {
+        let precise = Date(timeIntervalSince1970: 1_756_800_000.75)
+        try store.save(AppState(lastRollover: precise))
+
+        let loaded = try XCTUnwrap(store.load().lastRollover)
+        XCTAssertEqual(loaded.timeIntervalSince1970, precise.timeIntervalSince1970, accuracy: 0.001)
+    }
+
     func testSaveCreatesMissingDirectory() throws {
         let nested = directory
             .appendingPathComponent("nested", isDirectory: true)
@@ -142,6 +150,6 @@ final class AppStateStoreTests: XCTestCase {
         try store.save(AppState(lastRollover: Date(timeIntervalSince1970: 1_756_800_000)))
 
         let json = try String(contentsOf: store.fileURL, encoding: .utf8)
-        XCTAssertTrue(json.contains("\"lastRollover\" : \"2025-09-02T08:00:00Z\""), json)
+        XCTAssertTrue(json.contains("\"lastRollover\" : \"2025-09-02T08:00:00.000Z\""), json)
     }
 }

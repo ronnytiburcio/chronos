@@ -73,7 +73,10 @@ enum SessionLogError: Error, Equatable {
 /// Replay is forgiving by design. A truncated last line, a `close` with no
 /// `open`, a duplicate `open` — each is logged and skipped rather than
 /// throwing, because a single bad line must never lock the user out of their
-/// own history.
+/// own history. Replay also enforces the engine's one-open-session invariant:
+/// if an `open` arrives while another session is still open (a `close` record
+/// that never made it to disk), the earlier session is closed at the new one's
+/// start, so a lost line can never turn into two ticking timers.
 struct SessionLog: Sendable {
     let fileURL: URL
 
@@ -108,13 +111,18 @@ struct SessionLog: Sendable {
     func loadSessions() throws -> [Session] {
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
         let data = try Data(contentsOf: fileURL)
-        guard let text = String(data: data, encoding: .utf8) else {
+        guard var text = String(data: data, encoding: .utf8) else {
             NSLog("Chronos: \(fileURL.lastPathComponent) is not valid UTF-8; ignoring it")
             return []
+        }
+        // A byte-order mark from an outside editor is not part of the first record.
+        if text.hasPrefix("\u{FEFF}") {
+            text.removeFirst()
         }
 
         var sessions: [Session] = []
         var indexByID: [UUID: Int] = [:]
+        var openIndex: Int?
 
         for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
             guard let record = decode(line) else { continue }
@@ -124,7 +132,12 @@ struct SessionLog: Sendable {
                     NSLog("Chronos: duplicate open record for session \(id); skipping")
                     continue
                 }
+                if let previous = openIndex, sessions[previous].isOpen {
+                    NSLog("Chronos: session \(sessions[previous].id) was never closed; closing it at \(start)")
+                    sessions[previous].end = max(start, sessions[previous].start)
+                }
                 indexByID[id] = sessions.count
+                openIndex = sessions.count
                 sessions.append(Session(id: id, projectID: projectID, start: start))
             case let .close(id, end):
                 guard let index = indexByID[id] else {
@@ -176,13 +189,13 @@ struct SessionLog: Sendable {
     private static let encoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        encoder.dateEncodingStrategy = .iso8601
+        encoder.dateEncodingStrategy = JSONDates.encodingStrategy
         return encoder
     }()
 
     private static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = JSONDates.decodingStrategy
         return decoder
     }()
 }

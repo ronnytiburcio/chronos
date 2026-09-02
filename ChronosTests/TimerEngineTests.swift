@@ -217,6 +217,20 @@ final class TimerEngineTests: XCTestCase {
         XCTAssertEqual(forEverything, 180)
     }
 
+    func testStartAfterABackwardClockJumpIsClampedToTheRollover() throws {
+        let project = Project(name: "Client Work", sortOrder: 0)
+        try ProjectStore(fileURL: projectsURL).save([project])
+        try AppStateStore(fileURL: stateURL).save(AppState(lastRollover: dayStart))
+        let engine = makeEngine()
+        // The clock is corrected to ten minutes before the boundary on record.
+        fakeNow.advance(by: -(8 * 3600) - 600)
+
+        engine.start(projectID: project.id)
+
+        XCTAssertEqual(engine.openSession?.start, dayStart, "the session is pinned to today")
+        XCTAssertEqual(engine.total(for: project.id, asOf: dayStart.addingTimeInterval(60)), 60)
+    }
+
     func testFirstLaunchRecordsTheTrackingDayItStartedIn() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
@@ -433,7 +447,14 @@ final class TimerEngineTests: XCTestCase {
 
     /// A new engine over the same temp files, which is also how "quit and
     /// relaunch" is simulated.
-    private func makeEngine(calendar: Calendar = .current) -> TimerEngine {
+    /// Pinned so the tracking-day math does not depend on the machine's zone.
+    private static let newYorkCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        return calendar
+    }()
+
+    private func makeEngine(calendar: Calendar = TimerEngineTests.newYorkCalendar) -> TimerEngine {
         TimerEngine(
             clock: fakeNow.clock,
             projectStore: ProjectStore(fileURL: projectsURL),

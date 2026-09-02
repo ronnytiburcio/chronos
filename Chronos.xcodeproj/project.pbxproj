@@ -34,6 +34,7 @@
 		9226C40D4CC74BA140277743 /* TimerEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B340BD7A70FDD0FBF444BE /* TimerEngineTests.swift */; };
 		95A49F503D8D715E50E18739 /* TrackingDayTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 630175B4B802C36BFF115BF7 /* TrackingDayTests.swift */; };
 		AA6A30DEFE623D6DDDEA9376 /* ChronosApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145B805DB178287DD8009EB4 /* ChronosApp.swift */; };
+		AD5336528A2FBA450795FA65 /* JSONDates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38D7E1E521591A20C7B38AFD /* JSONDates.swift */; };
 		BCBDFDB1458DC1F1D0F39790 /* PanelPlaceholderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7CDE99BB3C116B1BFEF712 /* PanelPlaceholderView.swift */; };
 		C667D84D3D0D12A3211A93C2 /* TimeFormattingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7277896A1BE1F112E87DDE3E /* TimeFormattingTests.swift */; };
 		C6A80282F37AE9132DCC2955 /* JSONFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E29821F10B4AFF3BAD2AA9F /* JSONFile.swift */; };
@@ -57,6 +58,7 @@
 		145B805DB178287DD8009EB4 /* ChronosApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChronosApp.swift; sourceTree = "<group>"; };
 		321531D26236214E7C9F13F2 /* DesktopPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopPanel.swift; sourceTree = "<group>"; };
 		33FFECA7C3F0AE4D2BDA0877 /* TimeFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatting.swift; sourceTree = "<group>"; };
+		38D7E1E521591A20C7B38AFD /* JSONDates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONDates.swift; sourceTree = "<group>"; };
 		47AD655E90FEA408EE436F8F /* TrackingDay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackingDay.swift; sourceTree = "<group>"; };
 		4A3DBA7797A8AD0AE9AFDDE6 /* SessionLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLog.swift; sourceTree = "<group>"; };
 		4E1975A24B11F75885C1C9DF /* Chronos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Chronos.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -201,6 +203,7 @@
 			children = (
 				F9DE8C2EA1479FF4D2521770 /* AppPaths.swift */,
 				FF1176F0ECACA0C8725C9FD9 /* AppStateStore.swift */,
+				38D7E1E521591A20C7B38AFD /* JSONDates.swift */,
 				9E29821F10B4AFF3BAD2AA9F /* JSONFile.swift */,
 				64E842D8239303E6FD9E21E7 /* ProjectStore.swift */,
 				4A3DBA7797A8AD0AE9AFDDE6 /* SessionLog.swift */,
@@ -325,6 +328,7 @@
 				44B528B5DD8AD3C873F29979 /* DesktopPanel.swift in Sources */,
 				68ED4594EE5409AF0FC48685 /* DragHandleView.swift in Sources */,
 				3F28DFF162C8E7DDDC650A8A /* FirstMouseHostingView.swift in Sources */,
+				AD5336528A2FBA450795FA65 /* JSONDates.swift in Sources */,
 				C6A80282F37AE9132DCC2955 /* JSONFile.swift in Sources */,
 				3B54BDF040A8DC34B676B63E /* MenuBarController.swift in Sources */,
 				27B3C205B24CEAC274CEF7DD /* Palette.swift in Sources */,

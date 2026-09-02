@@ -125,6 +125,49 @@ final class SessionLogTests: XCTestCase {
 
     // MARK: - Rotation
 
+    func testLeadingByteOrderMarkIsIgnored() throws {
+        let id = UUID()
+        try log.append(.open(id: id, projectID: projectID, start: start))
+        let bytes = try Data(contentsOf: log.fileURL)
+        try (Data([0xEF, 0xBB, 0xBF]) + bytes).write(to: log.fileURL)
+
+        XCTAssertEqual(try log.loadSessions().map(\.id), [id])
+    }
+
+    func testASecondOpenClosesAnUnclosedSessionAtItsStart() throws {
+        // A close record that never reached the disk must not replay as two
+        // open sessions.
+        let first = UUID()
+        let second = UUID()
+        try log.append(.open(id: first, projectID: projectID, start: start))
+        try log.append(.open(id: second, projectID: projectID, start: start.addingTimeInterval(300)))
+
+        let sessions = try log.loadSessions()
+        XCTAssertEqual(sessions.count, 2)
+        XCTAssertEqual(sessions[0].end, start.addingTimeInterval(300))
+        XCTAssertTrue(sessions[1].isOpen)
+        XCTAssertEqual(sessions.filter(\.isOpen).count, 1)
+    }
+
+    func testFractionalSecondsSurviveARoundTrip() throws {
+        let id = UUID()
+        let precise = start.addingTimeInterval(0.25)
+        try log.append(.open(id: id, projectID: projectID, start: precise))
+        try log.append(.close(id: id, end: precise.addingTimeInterval(1.5)))
+
+        let session = try XCTUnwrap(log.loadSessions().first)
+        XCTAssertEqual(session.start.timeIntervalSince1970, precise.timeIntervalSince1970, accuracy: 0.001)
+        XCTAssertEqual(session.end?.timeIntervalSince1970 ?? 0, precise.timeIntervalSince1970 + 1.5, accuracy: 0.001)
+    }
+
+    func testWholeSecondTimestampsStillLoad() throws {
+        let id = UUID()
+        let line = #"{"id":"\#(id.uuidString)","projectID":"\#(projectID.uuidString)","start":"2026-09-02T12:00:00Z","type":"open"}"#
+        try Data((line + "\n").utf8).write(to: log.fileURL)
+
+        XCTAssertEqual(try log.loadSessions().first?.start, Date(timeIntervalSince1970: 1_788_350_400))
+    }
+
     func testRotateMovesTheFileAndAFreshAppendStartsANewOne() throws {
         let rotated = UUID()
         let fresh = UUID()
