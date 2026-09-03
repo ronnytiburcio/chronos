@@ -203,10 +203,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # A tag with a suffix (v0.1.0-rc1) is a pre-release.
-          PRERELEASE=()
-          case "$TAG" in *-*) PRERELEASE=(--prerelease) ;; esac
+          # A tag with a suffix (v0.1.0-rc1) is a pre-release. A plain string,
+          # not an array: the runner's bash 3.2 treats an empty array as
+          # unbound under `set -u`.
+          PRERELEASE=""
+          case "$TAG" in *-*) PRERELEASE="--prerelease" ;; esac
           gh release create "$TAG" "$DMG_PATH" \
             --title "Chronos $TAG" \
             --notes-file "$NOTES_PATH" \
-            "${PRERELEASE[@]}"
+            ${PRERELEASE:+"$PRERELEASE"}
