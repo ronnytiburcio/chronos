@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// The panel footer (SPEC §5): add a project, reset the day, open settings.
+/// The panel footer (SPEC §5): add a project, open the review window, reset the
+/// day, open settings.
 ///
 /// Both destructive-ish affordances stay inside the panel. Adding is an inline
 /// field, and Reset is a two-step confirm in the footer itself rather than an
@@ -9,6 +10,7 @@ import SwiftUI
 struct FooterView: View {
     var onAdd: (String) -> Void
     var onReset: () -> Void
+    var onOpenReview: () -> Void
     var onOpenSettings: () -> Void
 
     private enum Mode: Equatable {
@@ -61,6 +63,9 @@ struct FooterView: View {
 
     private var iconButtons: some View {
         HStack(spacing: 12) {
+            HoverIconButton(symbol: "chart.bar", help: "Review") {
+                onOpenReview()
+            }
             HoverIconButton(symbol: "arrow.clockwise", help: "Reset day") {
                 mode = .confirmingReset
             }
@@ -152,7 +157,7 @@ private struct HoverButton: View {
     }
 }
 
-/// The footer's symbol buttons (⟳, ⚙).
+/// The footer's symbol buttons (chart, ⟳, ⚙).
 private struct HoverIconButton: View {
     let symbol: String
     let help: String

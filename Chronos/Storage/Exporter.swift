@@ -96,7 +96,7 @@ struct Exporter: Sendable {
     /// The same thing for bounds that have already been resolved, so a caller
     /// naming the file after the range cannot resolve it twice and disagree.
     func csv(from: String, to: String, asOf now: Date) throws -> String {
-        let sessions = try loadHistory()
+        let sessions = try history.load()
         let order = Dictionary(uniqueKeysWithValues: projects.enumerated().map { ($0.element.id, $0.offset) })
 
         // Keyed by day and project so a day's rows can be emitted in project
@@ -138,39 +138,6 @@ struct Exporter: Sendable {
 
     // MARK: - History
 
-    /// Every session Chronos still has on disk: the rotated years first, oldest
-    /// to newest, then the live log. A session id seen twice (a log copied by
-    /// hand, say) is counted once.
-    private func loadHistory() throws -> [Session] {
-        var sessions: [Session] = []
-        var seen: Set<UUID> = []
-        for url in rotatedLogURLs() + [sessionsFileURL] {
-            let loaded = try SessionLog(fileURL: url).loadSessions()
-            for session in loaded where seen.insert(session.id).inserted {
-                sessions.append(session)
-            }
-        }
-        return sessions
-    }
-
-    /// `sessions-YYYY.jsonl` beside the live log, oldest year first.
-    private func rotatedLogURLs() -> [URL] {
-        let folder = sessionsFileURL.deletingLastPathComponent()
-        let names: [String]
-        do {
-            names = try FileManager.default.contentsOfDirectory(atPath: folder.path)
-        } catch {
-            NSLog("Chronos: could not list \(folder.path) for rotated session logs: \(error.localizedDescription)")
-            return []
-        }
-        return names
-            .compactMap { name -> (year: Int, url: URL)? in
-                guard name.hasPrefix("sessions-"), name.hasSuffix(".jsonl") else { return nil }
-                let year = name.dropFirst("sessions-".count).dropLast(".jsonl".count)
-                guard let value = Int(year) else { return nil }
-                return (value, folder.appendingPathComponent(name, isDirectory: false))
-            }
-            .sorted { $0.year < $1.year }
-            .map(\.url)
-    }
+    /// The whole history on disk, live log plus rotated years.
+    private var history: SessionHistory { SessionHistory(sessionsFileURL: sessionsFileURL) }
 }

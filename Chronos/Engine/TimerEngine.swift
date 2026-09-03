@@ -595,6 +595,13 @@ final class TimerEngine {
         ).csv(from: from, to: to, asOf: clock.now())
     }
 
+    /// The whole session history on disk — the live log plus every rotated
+    /// year — for anything that looks further back than today. ``sessions``
+    /// alone is not enough after a yearly rotation trims it.
+    var sessionHistory: SessionHistory {
+        SessionHistory(sessionsFileURL: sessionLog.fileURL)
+    }
+
     /// The inclusive `yyyy-MM-dd` bounds a range resolves to right now — used
     /// both for the export itself and for the file name it is offered under.
     func exportBounds(for range: ExportRange) -> (from: String, to: String) {

@@ -37,6 +37,12 @@ enum Palette {
     static let paper = PaletteColor(hex: 0xF4F5F7)
     /// Secondary text, idle rows.
     static let muted = PaletteColor(hex: 0x8C93A1)
+    /// A period ahead of the one before it, in the review window. Also one of
+    /// the row colors in ``ProjectColorOptions``.
+    static let mint = PaletteColor(hex: 0x3FBF8F)
+    /// A period behind the one before it, in the review window. Also one of
+    /// the row colors in ``ProjectColorOptions``.
+    static let coral = PaletteColor(hex: 0xFF7A59)
 }
 
 extension Color {
@@ -45,4 +51,6 @@ extension Color {
     static var chronosInk: Color { Palette.ink.color }
     static var chronosPaper: Color { Palette.paper.color }
     static var chronosMuted: Color { Palette.muted.color }
+    static var chronosMint: Color { Palette.mint.color }
+    static var chronosCoral: Color { Palette.coral.color }
 }

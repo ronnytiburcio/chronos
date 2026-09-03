@@ -96,7 +96,7 @@ struct HeaderView: View {
 enum TrackingDateLabel {
     private static let formatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEE MMM d"
+        formatter.dateFormat = TimeFormatting.dayLabelFormat
         return formatter
     }()
 

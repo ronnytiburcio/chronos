@@ -11,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Built on the first Settings… and kept, so the window reopens where the
     /// user left it.
     private var settings: SettingsWindowController?
+    /// Same again for the review window.
+    private var review: ReviewWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The unit tests use this app as their host; they must not put a panel
@@ -40,11 +42,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             engine: engine,
             isPanelVisible: { [weak self] in self?.panel?.isVisible ?? false },
             togglePanel: { [weak self] in self?.panel?.toggle() },
+            openReview: { [weak self] in self?.openReview() },
             openSettings: { [weak self] in self?.openSettings() }
         )
 
         let actions = PanelActions(
             onReset: { engine.resetDay() },
+            onOpenReview: { [weak self] in self?.openReview() },
             onOpenSettings: { [weak self] in self?.openSettings() }
         )
         let panel = PanelController(
@@ -57,11 +61,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.show()
         self.panel = panel
 
-        // A development and screenshot hook: `CHRONOS_OPEN_SETTINGS=1 open -a
-        // Chronos` puts the settings window on screen at launch, which is
-        // otherwise a two-click journey through a menu bar item.
-        if ProcessInfo.processInfo.environment["CHRONOS_OPEN_SETTINGS"] == "1" {
+        // Development and screenshot hooks: `CHRONOS_OPEN_SETTINGS=1` or
+        // `CHRONOS_OPEN_REVIEW=1` puts that window on screen at launch, which
+        // is otherwise a two-click journey through a menu bar item. `open`
+        // does not forward the variable; run the binary inside the bundle.
+        let environment = ProcessInfo.processInfo.environment
+        if environment["CHRONOS_OPEN_SETTINGS"] == "1" {
             openSettings()
+        }
+        if environment["CHRONOS_OPEN_REVIEW"] == "1" {
+            openReview()
         }
     }
 
@@ -77,6 +86,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.rollover?.rearm()
         }
         settings = controller
+        controller.show()
+    }
+
+    /// Opens the review window, building it the first time (Phase 9).
+    ///
+    /// Kept for the same reason the settings controller is: a second Review…
+    /// should bring the existing window forward rather than stack a new one.
+    private func openReview() {
+        guard let engine else { return }
+        let controller = review ?? ReviewWindowController(engine: engine)
+        review = controller
         controller.show()
     }
 

@@ -18,17 +18,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let engine: TimerEngine
     private let isPanelVisible: () -> Bool
     private let togglePanel: () -> Void
+    private let openReview: () -> Void
     private let openSettings: () -> Void
 
     init(
         engine: TimerEngine,
         isPanelVisible: @escaping () -> Bool,
         togglePanel: @escaping () -> Void,
+        openReview: @escaping () -> Void,
         openSettings: @escaping () -> Void
     ) {
         self.engine = engine
         self.isPanelVisible = isPanelVisible
         self.togglePanel = togglePanel
+        self.openReview = openReview
         self.openSettings = openSettings
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
@@ -151,6 +154,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         toggle.target = self
         menu.addItem(toggle)
 
+        let review = NSMenuItem(
+            title: "Review…",
+            action: #selector(openReviewAction),
+            keyEquivalent: "r"
+        )
+        review.target = self
+        menu.addItem(review)
+
         let settings = NSMenuItem(
             title: "Settings…",
             action: #selector(openSettingsAction),
@@ -202,6 +213,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func togglePanelAction() {
         togglePanel()
+    }
+
+    @objc private func openReviewAction() {
+        openReview()
     }
 
     @objc private func openSettingsAction() {

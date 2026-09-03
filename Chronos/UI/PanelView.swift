@@ -3,6 +3,7 @@ import SwiftUI
 /// The things the panel cannot do for itself, handed in by the app delegate.
 struct PanelActions {
     var onReset: () -> Void
+    var onOpenReview: () -> Void
     var onOpenSettings: () -> Void
 }
 
@@ -40,6 +41,7 @@ struct PanelView: View {
             FooterView(
                 onAdd: { engine.addProject(named: $0) },
                 onReset: actions.onReset,
+                onOpenReview: actions.onOpenReview,
                 onOpenSettings: actions.onOpenSettings
             )
         }

@@ -7,6 +7,10 @@ import Foundation
 /// (`1:02:05`, never "1 hr, 2 min"). Render them in a monospaced-digit font so
 /// the columns do not jitter.
 enum TimeFormatting {
+    /// `Tue Sep 2` — the one date shape the header and the review insights
+    /// share, so a day is never named two different ways.
+    static let dayLabelFormat = "EEE MMM d"
+
     /// `H:MM:SS`, counting hours past 24 rather than wrapping (SPEC §5).
     /// Seconds are truncated, so a timer reads `0:00:00` for its first second.
     static func hms(_ seconds: TimeInterval) -> String {
@@ -22,6 +26,14 @@ enum TimeFormatting {
         guard seconds.isFinite else { return "0h 0m" }
         let total = Int(max(0, seconds))
         return "\(total / 3600)h \((total % 3600) / 60)m"
+    }
+
+    /// `+2h 10m` / `-1h 5m` — how a period compares with the one before it, in
+    /// the review window. A zero difference is a sentence rather than a number,
+    /// so the caller words that case itself.
+    static func signedHoursMinutes(_ seconds: TimeInterval) -> String {
+        guard seconds.isFinite else { return "0h 0m" }
+        return (seconds < 0 ? "-" : "+") + hoursMinutes(abs(seconds))
     }
 
     /// `H:MM` — the elapsed time beside the menu bar bolt (SPEC §10).

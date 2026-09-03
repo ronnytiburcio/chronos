@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   menu bar, and full project management.
 - **Export.** A CSV summary for this week, this month, or a custom date range,
   saved wherever you choose.
+- **Review window.** A dark dashboard over the whole history: today, this week
+  and this month with their deltas against the previous period, the selected
+  period split by project, a bar chart of the last 7 or 30 tracking days, and
+  insight lines for the busiest day, the average across tracked days, the
+  current streak, and the longest session. Opens from the panel's chart button
+  or the menu bar's `Review…`.
 - **Menu bar item.** A bolt that fills and turns red while a timer runs, with
   optional elapsed time, quick-start for any project, show/hide panel,
   Settings, and Quit.

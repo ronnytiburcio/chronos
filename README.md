@@ -42,6 +42,8 @@ a Swift app and not a web app.
 - Plain-file archive: `daily-summary.csv`, `sessions.csv`, and a markdown note
   per day.
 - CSV export for this week, this month, or any date range.
+- A review window with today/week/month totals, per-project bars, a daily bar
+  chart, and a few plain-English insights.
 - Menu bar bolt with the running project, elapsed time, quick-start, and Quit.
 - Crash- and sleep-safe: totals are always recomputed from timestamps, and the
   open session hits disk the instant it starts.
@@ -230,13 +232,35 @@ Open Settings from the panel's ⚙ button or the menu bar bolt.
 | Projects | — | Rename, recolor, reorder, archive and unarchive. |
 | Export | — | This week, this month, or a custom range, saved as CSV with the same columns as `daily-summary.csv`. |
 
+## Review
+
+Open the review window from the panel's chart button or the menu bar bolt
+(`Review…`). It is a read-only dashboard over the whole session history on
+disk, rotated logs included:
+
+- **Three totals** — today, this week, this month — each with how it compares
+  with the period before it (`+2h 10m vs last week`). "This week" and "this
+  month" are the calendar week and month containing today's tracking day, and
+  the comparison is against the last *complete* one, so early in a week the
+  difference is normally negative.
+- **By project** — the selected period split into bars, biggest first.
+  Archived projects show up when they have time on them.
+- **A daily chart** — the last 7 tracking days (Day and Week) or the last 30
+  (Month), with today in red. Empty days are drawn as empty days.
+- **Insights** — busiest day, average across the days you actually tracked,
+  your current streak, and the single longest session in the period. A line is
+  left out rather than padded when there is nothing to say.
+
+The Day / Week / Month control drives the bars, the chart, and the insights;
+the three totals stay put. Numbers refresh when you open the window, when a
+timer starts or stops, and once a minute while the window is open.
+
 ## Roadmap
 
 Deliberately short. Chronos is meant to stay a simple daily tracker.
 
 - Idle detection with a "keep / discard" prompt.
 - Editing or deleting past sessions.
-- A weekly/monthly review view inside the app.
 - A global keyboard shortcut to toggle the last-used project.
 - Notes attached to a session.
 
