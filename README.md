@@ -11,9 +11,9 @@ and resets to zero for the new day. No accounts, no cloud, no network.
 
 <br clear="left">
 
-<img src="Assets/screenshot-panel.png" alt="The Chronos panel: header with the day total, four project rows, footer" width="360">
+<img src="Assets/screenshot-desktop.png" alt="A Mac desktop with the Chronos panel in the top-right corner: header with the day total, four project rows, footer; the menu bar shows the running bolt and elapsed time" width="820">
 
-*A rendering of the panel, at its default size with four projects.*
+*The panel on a desktop, rendered from the real views over a generated wallpaper.*
 
 ## Why it exists
 

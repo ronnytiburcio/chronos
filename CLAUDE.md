@@ -42,7 +42,7 @@ Chronos/UI        Palette, ProjectColor, TimeFormatting, PanelLayout, EscapeKeyM
 Chronos/Resources Assets.xcassets (AppIcon, AccentColor, MenuBarBoltIdle/Running template sets), generated Info.plist
 ChronosTests      XCTest
 Scripts           render-icons.swift, make-dmg.sh
-Assets            chronos-bolt.svg, icon-1024.png, screenshot-panel.png — README artwork, generated, never bundled
+Assets            chronos-bolt.svg, icon-1024.png, screenshot-panel.png, screenshot-desktop.png — README artwork, generated, never bundled
 .github           workflows/build.yml, ISSUE_TEMPLATE/, PULL_REQUEST_TEMPLATE.md
 ```
 
