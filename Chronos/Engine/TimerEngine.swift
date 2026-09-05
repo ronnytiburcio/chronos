@@ -7,6 +7,33 @@ enum MoveDirection: Sendable {
     case down
 }
 
+/// Why ``TimerEngine/editSession(_:projectID:start:end:)`` or
+/// ``TimerEngine/deleteSession(_:)`` refused to apply an edit. Today-only
+/// scope (SPEC's v1 decision) is `notToday`/`startBeforeDay`; the rest guard
+/// the shape of a single session.
+enum SessionEditError: Error, Equatable {
+    case unknownSession, unknownProject, notToday, startBeforeDay, startInFuture, endInFuture, endBeforeStart, cannotReopen
+    /// The append failed and memory was left untouched, exactly like a failed
+    /// ``TimerEngine/beginSession(projectID:at:)``.
+    case notRecorded(String)
+}
+
+extension SessionEditError: LocalizedError {
+    var errorDescription: String? {
+        switch self {
+        case .notToday: "Only today's sessions can be edited."
+        case .startBeforeDay: "A session cannot start before the day began."
+        case .startInFuture: "A session cannot start in the future."
+        case .cannotReopen: "A finished session cannot be reopened."
+        case .endBeforeStart: "A session cannot end before it starts."
+        case .endInFuture: "A session cannot end in the future."
+        case .unknownProject: "That project no longer exists."
+        case .unknownSession: "That session no longer exists."
+        case let .notRecorded(message): "Could not save the edit: \(message)"
+        }
+    }
+}
+
 /// The running state of Chronos: the project list, the session history, and
 /// the one session that may be open (SPEC §6).
 ///
@@ -28,7 +55,10 @@ enum MoveDirection: Sendable {
 final class TimerEngine {
     /// Every project, archived ones included, ordered by `sortOrder`.
     private(set) var projects: [Project]
-    /// Every session ever recorded, in the order they were opened.
+    /// Every session ever recorded, in the order they were opened. An edit can
+    /// move a session's `start`/`end` past a neighbour's without reordering
+    /// this array — nothing here depends on array order, only on the
+    /// timestamps (see ``SessionLog/loadSessions()``).
     private(set) var sessions: [Session]
     /// The instant the UI should render times against. Updated once a second
     /// while a session is open, and on every mutation.
@@ -278,6 +308,112 @@ final class TimerEngine {
         sessions[index].end = end
     }
 
+    // MARK: - Editing today's sessions
+
+    /// Corrects a session that started today (SPEC v1's scope): its project,
+    /// start, and/or end. Validation runs in a fixed order so the first
+    /// problem found is always the one reported: unknown session, not today,
+    /// unknown project, start before the day began, start in the future,
+    /// reopening a closed session, end before start, end in the future.
+    ///
+    /// `end == nil` is only valid for a session that is already open — an
+    /// edit can never reopen a closed one. Passing the open session's own
+    /// `projectID` and `start` with a new `end` is how "Stop at…" works: one
+    /// path, one record kind, never a `.close` as well. Reassigning the open
+    /// session with `end == nil` keeps it running under the new project; nothing
+    /// here touches the ticker except when the edit closes it.
+    ///
+    /// Persistence follows ``beginSession(projectID:at:)``, not ``close(_:at:)``:
+    /// the record is appended first, and a failure throws without touching
+    /// memory, so the in-memory session and the log can never disagree.
+    func editSession(_ id: UUID, projectID: UUID, start: Date, end: Date?) throws {
+        let index = try todaysSessionIndex(id)
+        guard projects.contains(where: { $0.id == projectID }) else {
+            throw SessionEditError.unknownProject
+        }
+        let session = sessions[index]
+        guard start >= lastRollover else {
+            throw SessionEditError.startBeforeDay
+        }
+        guard start <= clock.now() else {
+            throw SessionEditError.startInFuture
+        }
+        if end == nil {
+            guard session.isOpen else {
+                throw SessionEditError.cannotReopen
+            }
+        }
+        if let end {
+            guard end >= start else {
+                throw SessionEditError.endBeforeStart
+            }
+            guard end <= clock.now() else {
+                throw SessionEditError.endInFuture
+            }
+        }
+
+        // A no-op edit appends nothing, like `updateSettings`.
+        guard session.projectID != projectID || session.start != start || session.end != end else {
+            return
+        }
+
+        try record(.adjust(
+            id: id,
+            projectID: session.projectID == projectID ? nil : projectID,
+            start: start,
+            end: end
+        ), describing: "a session edit")
+
+        sessions[index].projectID = projectID
+        sessions[index].start = start
+        sessions[index].end = end
+        finishSessionMutation()
+    }
+
+    /// Removes a session that started today outright. Same today-only rule and
+    /// persist-first policy as ``editSession(_:projectID:start:end:)``.
+    func deleteSession(_ id: UUID) throws {
+        let index = try todaysSessionIndex(id)
+
+        try record(.delete(id: id), describing: "a session deletion")
+
+        sessions.remove(at: index)
+        finishSessionMutation()
+    }
+
+    /// The `unknownSession`/`notToday` checks shared by
+    /// ``editSession(_:projectID:start:end:)`` and ``deleteSession(_:)``.
+    private func todaysSessionIndex(_ id: UUID) throws -> Int {
+        guard let index = sessions.firstIndex(where: { $0.id == id }) else {
+            throw SessionEditError.unknownSession
+        }
+        guard sessions[index].start >= lastRollover else {
+            throw SessionEditError.notToday
+        }
+        return index
+    }
+
+    /// Appends a session-edit record, throwing ``SessionEditError/notRecorded(_:)``
+    /// (after warning) when the log refuses it — memory is left untouched
+    /// either way, matching ``beginSession(projectID:at:)``.
+    private func record(_ record: SessionRecord, describing action: String) throws {
+        do {
+            try sessionLog.append(record)
+        } catch {
+            warn("Could not record \(action): \(error.localizedDescription)")
+            throw SessionEditError.notRecorded(error.localizedDescription)
+        }
+    }
+
+    /// The bookkeeping shared by ``editSession(_:projectID:start:end:)`` and
+    /// ``deleteSession(_:)`` once memory has been updated.
+    private func finishSessionMutation() {
+        now = clock.now()
+        if openSession == nil {
+            stopTicking()
+        }
+    }
+
     // MARK: - Rollover
 
     /// Runs every rollover that is due, oldest first (SPEC §7).
@@ -378,7 +514,9 @@ final class TimerEngine {
         to boundary: Date,
         including isIncluded: (Session) -> Bool = { _ in true }
     ) -> ArchivedDay {
-        let daySessions = sessions.filter { $0.start >= dayStart && $0.start < boundary && isIncluded($0) }
+        let daySessions = sessions
+            .filter { $0.start >= dayStart && $0.start < boundary && isIncluded($0) }
+            .sorted { $0.start < $1.start }
         let names = Dictionary(projects.map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
 
         // Archived projects are included when they have time on them: the

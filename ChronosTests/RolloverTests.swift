@@ -95,6 +95,45 @@ final class RolloverTests: XCTestCase {
         )
     }
 
+    func testSessionsCSVRowsFollowStartTimeAfterAnEditReordersThem() throws {
+        try seedState(lastRollover: dayStart)
+        let engine = makeEngine()
+        let first = try XCTUnwrap(engine.addProject(named: "First"))
+        let second = try XCTUnwrap(engine.addProject(named: "Second"))
+
+        engine.start(projectID: first.id) // 09:00:00
+        fakeNow.advance(by: 600)
+        engine.stop()
+        let firstSession = try XCTUnwrap(engine.sessions.first { $0.projectID == first.id })
+
+        advance(to: dayStart.addingTimeInterval(7 * 3600)) // 11:00:00
+        engine.start(projectID: second.id)
+        fakeNow.advance(by: 600)
+        engine.stop()
+        let secondSession = try XCTUnwrap(engine.sessions.first { $0.projectID == second.id })
+
+        // Edit "First"'s start to land after "Second"'s start: insertion order
+        // (First, then Second) now disagrees with start-time order.
+        try engine.editSession(
+            firstSession.id,
+            projectID: first.id,
+            start: secondSession.start.addingTimeInterval(60),
+            end: secondSession.start.addingTimeInterval(300)
+        )
+
+        let boundary = dayStart.addingTimeInterval(Self.day)
+        advance(to: boundary)
+        engine.performRolloversIfNeeded(now: fakeNow.current)
+
+        let rows = try read(sessionsFileCSV)
+            .split(separator: "\n")
+            .dropFirst() // header
+            .filter { !$0.isEmpty }
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertTrue(rows[0].contains("Second"), "the earlier-starting session (Second) comes first")
+        XCTAssertTrue(rows[1].contains("First"), "the edited, later-starting session (First) comes second")
+    }
+
     func testAnEmptyDayWritesNothingButStillTurnsOver() throws {
         try seedState(lastRollover: dayStart)
         let engine = makeEngine()

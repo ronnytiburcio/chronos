@@ -439,6 +439,368 @@ final class TimerEngineTests: XCTestCase {
         XCTAssertEqual(engine.settings, settings)
     }
 
+    // MARK: - Editing today's sessions
+
+    func testEditingASessionsEndTrimsItAndSurvivesRelaunch() throws {
+        let engine = makeEngine()
+        let project = try XCTUnwrap(engine.addProject(named: "Client Work"))
+        engine.start(projectID: project.id)
+        fakeNow.advance(by: 4 * 3600) // ran four hours instead of thirty minutes
+        engine.stop()
+        let session = try XCTUnwrap(engine.sessions.first)
+
+        try engine.editSession(
+            session.id,
+            projectID: project.id,
+            start: session.start,
+            end: session.start.addingTimeInterval(1800)
+        )
+
+        XCTAssertEqual(engine.total(for: project.id, asOf: fakeNow.current), 1800)
+        XCTAssertEqual(makeEngine().total(for: project.id, asOf: fakeNow.current), 1800, "the trim survives relaunch")
+    }
+
+    func testEditSessionMovesTheStart() throws {
+        let (engine, project, session) = try makeEngineWithClosedSession()
+        let newStart = session.start.addingTimeInterval(-120)
+
+        try engine.editSession(session.id, projectID: project.id, start: newStart, end: session.end)
+
+        XCTAssertEqual(engine.sessions.first?.start, newStart)
+    }
+
+    func testReassigningASessionMovesItsSecondsBetweenProjectTotalsAndSurvivesRelaunch() throws {
+        let engine = makeEngine()
+        let first = try XCTUnwrap(engine.addProject(named: "First"))
+        let second = try XCTUnwrap(engine.addProject(named: "Second"))
+        engine.start(projectID: first.id)
+        fakeNow.advance(by: 600)
+        engine.stop()
+        let session = try XCTUnwrap(engine.sessions.first)
+
+        try engine.editSession(session.id, projectID: second.id, start: session.start, end: session.end)
+
+        XCTAssertEqual(engine.total(for: first.id, asOf: fakeNow.current), 0)
+        XCTAssertEqual(engine.total(for: second.id, asOf: fakeNow.current), 600)
+        let reloaded = makeEngine()
+        XCTAssertEqual(reloaded.total(for: first.id, asOf: fakeNow.current), 0)
+        XCTAssertEqual(reloaded.total(for: second.id, asOf: fakeNow.current), 600)
+    }
+
+    func testEditSessionRejectsAnUnknownSession() throws {
+        let engine = makeEngine()
+        let project = try XCTUnwrap(engine.addProject(named: "Client Work"))
+
+        XCTAssertThrowsError(try engine.editSession(UUID(), projectID: project.id, start: fakeNow.current, end: nil)) { error in
+            XCTAssertEqual(error as? SessionEditError, .unknownSession)
+        }
+    }
+
+    func testEditSessionRejectsAnUnknownProject() throws {
+        let (engine, _, session) = try makeEngineWithClosedSession()
+
+        XCTAssertThrowsError(
+            try engine.editSession(session.id, projectID: UUID(), start: session.start, end: session.end)
+        ) { error in
+            XCTAssertEqual(error as? SessionEditError, .unknownProject)
+        }
+    }
+
+    func testEditSessionRejectsASessionFromBeforeTheLastRollover() throws {
+        let project = Project(name: "Client Work", sortOrder: 0)
+        try ProjectStore(fileURL: projectsURL).save([project])
+        let log = SessionLog(fileURL: sessionsURL)
+        let yesterday = UUID()
+        try log.append(.open(id: yesterday, projectID: project.id, start: dayStart.addingTimeInterval(-20 * 3600)))
+        try log.append(.close(id: yesterday, end: dayStart.addingTimeInterval(-19 * 3600)))
+        try AppStateStore(fileURL: stateURL).save(AppState(lastRollover: dayStart))
+        let engine = makeEngine()
+
+        XCTAssertThrowsError(
+            try engine.editSession(yesterday, projectID: project.id, start: dayStart, end: dayStart.addingTimeInterval(60))
+        ) { error in
+            XCTAssertEqual(error as? SessionEditError, .notToday)
+        }
+    }
+
+    func testEditSessionRejectsAStartBeforeTheTrackingDay() throws {
+        let (engine, project, session) = try makeEngineWithClosedSession()
+
+        XCTAssertThrowsError(
+            try engine.editSession(
+                session.id,
+                projectID: project.id,
+                start: engine.lastRollover.addingTimeInterval(-60),
+                end: session.end
+            )
+        ) { error in
+            XCTAssertEqual(error as? SessionEditError, .startBeforeDay)
+        }
+    }
+
+    func testEditSessionRejectsAStartInTheFuture() throws {
+        let (engine, project, session) = try makeEngineWithClosedSession()
+
+        XCTAssertThrowsError(
+            try engine.editSession(
+                session.id,
+                projectID: project.id,
+                start: fakeNow.current.addingTimeInterval(60),
+                end: session.end
+            )
+        ) { error in
+            XCTAssertEqual(error as? SessionEditError, .startInFuture)
+        }
+    }
+
+    func testEditSessionRejectsOmittingEndOnAClosedSession() throws {
+        let (engine, project, session) = try makeEngineWithClosedSession()
+
+        XCTAssertThrowsError(
+            try engine.editSession(session.id, projectID: project.id, start: session.start, end: nil)
+        ) { error in
+            XCTAssertEqual(error as? SessionEditError, .cannotReopen)
+        }
+    }
+
+    func testEditSessionRejectsAnEndBeforeItsStart() throws {
+        let (engine, project, session) = try makeEngineWithClosedSession()
+
+        XCTAssertThrowsError(
+            try engine.editSession(
+                session.id,
+                projectID: project.id,
+                start: session.start,
+                end: session.start.addingTimeInterval(-1)
+            )
+        ) { error in
+            XCTAssertEqual(error as? SessionEditError, .endBeforeStart)
+        }
+    }
+
+    func testEditSessionRejectsAnEndInTheFuture() throws {
+        let (engine, project, session) = try makeEngineWithClosedSession()
+
+        XCTAssertThrowsError(
+            try engine.editSession(
+                session.id,
+                projectID: project.id,
+                start: session.start,
+                end: fakeNow.current.addingTimeInterval(60)
+            )
+        ) { error in
+            XCTAssertEqual(error as? SessionEditError, .endInFuture)
+        }
+    }
+
+    func testEditingTheOpenSessionsStartKeepsItRunning() throws {
+        let engine = makeEngine()
+        let project = try XCTUnwrap(engine.addProject(named: "Client Work"))
+        engine.start(projectID: project.id)
+        let open = try XCTUnwrap(engine.openSession)
+        let newStart = open.start.addingTimeInterval(-60)
+
+        try engine.editSession(open.id, projectID: project.id, start: newStart, end: nil)
+
+        XCTAssertNotNil(engine.openSession)
+        XCTAssertEqual(engine.openSession?.start, newStart)
+    }
+
+    func testReassigningTheOpenSessionKeepsItOpenUnderTheNewProject() throws {
+        let engine = makeEngine()
+        let first = try XCTUnwrap(engine.addProject(named: "First"))
+        let second = try XCTUnwrap(engine.addProject(named: "Second"))
+        engine.start(projectID: first.id)
+        let open = try XCTUnwrap(engine.openSession)
+
+        try engine.editSession(open.id, projectID: second.id, start: open.start, end: nil)
+
+        assertAtMostOneOpenSession(engine)
+        XCTAssertNotNil(engine.openSession)
+        XCTAssertEqual(engine.runningProject?.id, second.id)
+    }
+
+    func testStopAtAnEarlierTimeClosesTheSessionAndWritesOnlyAnAdjust() throws {
+        let engine = makeEngine()
+        let project = try XCTUnwrap(engine.addProject(named: "Client Work"))
+        engine.start(projectID: project.id)
+        let open = try XCTUnwrap(engine.openSession)
+        fakeNow.advance(by: 300)
+        let stopAt = fakeNow.current.addingTimeInterval(-100)
+
+        try engine.editSession(open.id, projectID: project.id, start: open.start, end: stopAt)
+
+        XCTAssertNil(engine.openSession)
+        let persisted = try SessionLog(fileURL: sessionsURL).loadSessions()
+        XCTAssertEqual(persisted.first?.end, stopAt)
+        let text = try String(contentsOf: sessionsURL, encoding: .utf8)
+        XCTAssertFalse(text.contains("\"type\":\"close\""), "stopping through an edit never also writes a close")
+    }
+
+    func testNoOpEditAppendsNothing() throws {
+        let (engine, project, session) = try makeEngineWithClosedSession()
+        let sizeBefore = try fileSize(sessionsURL)
+
+        try engine.editSession(session.id, projectID: project.id, start: session.start, end: session.end)
+
+        XCTAssertEqual(try fileSize(sessionsURL), sizeBefore)
+    }
+
+    func testFailedEditAppendThrowsNotRecordedAndLeavesMemoryUntouched() throws {
+        let (engine, project, session) = try makeEngineWithClosedSession()
+        // Replace the log with a directory so `FileHandle(forWritingTo:)` fails
+        // — the same shape of failure `RolloverTests` uses for a blocked archive
+        // folder.
+        try FileManager.default.removeItem(at: sessionsURL)
+        try FileManager.default.createDirectory(at: sessionsURL, withIntermediateDirectories: true)
+
+        XCTAssertThrowsError(
+            try engine.editSession(
+                session.id,
+                projectID: project.id,
+                start: session.start,
+                end: session.start.addingTimeInterval(1)
+            )
+        ) { error in
+            guard case .notRecorded = error as? SessionEditError else {
+                return XCTFail("expected .notRecorded, got \(error)")
+            }
+        }
+        XCTAssertEqual(engine.sessions.first?.end, session.end, "memory is untouched by the failed append")
+        XCTAssertNotNil(engine.lastWarning)
+    }
+
+    func testDeleteSessionRemovesItAndStopsTickingWhenItWasOpen() throws {
+        let engine = makeEngine()
+        let project = try XCTUnwrap(engine.addProject(named: "Client Work"))
+        engine.start(projectID: project.id)
+        let open = try XCTUnwrap(engine.openSession)
+
+        try engine.deleteSession(open.id)
+
+        XCTAssertNil(engine.openSession)
+        XCTAssertTrue(engine.sessions.isEmpty)
+        XCTAssertTrue(try SessionLog(fileURL: sessionsURL).loadSessions().isEmpty)
+    }
+
+    func testDeleteSessionRejectsAnUnknownSession() {
+        let engine = makeEngine()
+
+        XCTAssertThrowsError(try engine.deleteSession(UUID())) { error in
+            XCTAssertEqual(error as? SessionEditError, .unknownSession)
+        }
+    }
+
+    func testDeleteSessionRejectsASessionFromBeforeTheLastRollover() throws {
+        let project = Project(name: "Client Work", sortOrder: 0)
+        try ProjectStore(fileURL: projectsURL).save([project])
+        let log = SessionLog(fileURL: sessionsURL)
+        let yesterday = UUID()
+        try log.append(.open(id: yesterday, projectID: project.id, start: dayStart.addingTimeInterval(-20 * 3600)))
+        try log.append(.close(id: yesterday, end: dayStart.addingTimeInterval(-19 * 3600)))
+        try AppStateStore(fileURL: stateURL).save(AppState(lastRollover: dayStart))
+        let engine = makeEngine()
+
+        XCTAssertThrowsError(try engine.deleteSession(yesterday)) { error in
+            XCTAssertEqual(error as? SessionEditError, .notToday)
+        }
+    }
+
+    func testEverySessionEditErrorCaseHasANonEmptyErrorDescription() {
+        let cases: [SessionEditError] = [
+            .unknownSession,
+            .unknownProject,
+            .notToday,
+            .startBeforeDay,
+            .startInFuture,
+            .endInFuture,
+            .endBeforeStart,
+            .cannotReopen,
+            .notRecorded("disk full"),
+        ]
+        for error in cases {
+            XCTAssertNotNil(error.errorDescription, "\(error) has no errorDescription")
+            XCTAssertFalse(
+                error.errorDescription?.isEmpty ?? true,
+                "\(error) has an empty errorDescription"
+            )
+        }
+    }
+
+    func testRolloverArchivesTheEditedDuration() throws {
+        try AppStateStore(fileURL: stateURL).save(AppState(lastRollover: dayStart))
+        let engine = makeEngine()
+        let project = try XCTUnwrap(engine.addProject(named: "Client Work"))
+        engine.start(projectID: project.id)
+        fakeNow.advance(by: 3600) // one hour
+        engine.stop()
+        let session = try XCTUnwrap(engine.sessions.first)
+
+        try engine.editSession(
+            session.id,
+            projectID: project.id,
+            start: session.start,
+            end: session.start.addingTimeInterval(1800) // trimmed to thirty minutes
+        )
+
+        let boundary = dayStart.addingTimeInterval(24 * 3600)
+        fakeNow.advance(by: boundary.timeIntervalSince(fakeNow.current))
+        engine.performRolloversIfNeeded(now: fakeNow.current)
+
+        let summary = try String(
+            contentsOf: directory.appendingPathComponent("Archive/daily-summary.csv"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(summary.contains(",1800,0.50"), summary)
+    }
+
+    func testSessionHistoryMatchesEngineSessionsAfterAnEditAndADelete() throws {
+        let engine = makeEngine()
+        let first = try XCTUnwrap(engine.addProject(named: "First"))
+        let second = try XCTUnwrap(engine.addProject(named: "Second"))
+        engine.start(projectID: first.id)
+        fakeNow.advance(by: 300)
+        engine.stop()
+        engine.start(projectID: second.id)
+        fakeNow.advance(by: 300)
+        engine.stop()
+        let toEdit = try XCTUnwrap(engine.sessions.first)
+        let toDelete = try XCTUnwrap(engine.sessions.last)
+
+        try engine.editSession(
+            toEdit.id,
+            projectID: toEdit.projectID,
+            start: toEdit.start,
+            end: toEdit.start.addingTimeInterval(60)
+        )
+        try engine.deleteSession(toDelete.id)
+
+        let history = try engine.sessionHistory.load()
+        XCTAssertEqual(
+            Set(history.map(\.id)),
+            Set(engine.sessions.map(\.id)),
+            "what ReviewScreen.refresh() reads matches the engine's in-memory sessions"
+        )
+        for session in engine.sessions {
+            XCTAssertEqual(history.first { $0.id == session.id }, session)
+        }
+    }
+
+    private func makeEngineWithClosedSession(duration: TimeInterval = 600) throws -> (TimerEngine, Project, Session) {
+        let engine = makeEngine()
+        let project = try XCTUnwrap(engine.addProject(named: "Client Work"))
+        engine.start(projectID: project.id)
+        fakeNow.advance(by: duration)
+        engine.stop()
+        let session = try XCTUnwrap(engine.sessions.first)
+        return (engine, project, session)
+    }
+
+    private func fileSize(_ url: URL) throws -> UInt64 {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        return attributes[.size] as? UInt64 ?? 0
+    }
+
     // MARK: - Helpers
 
     private var projectsURL: URL { directory.appendingPathComponent("projects.json") }

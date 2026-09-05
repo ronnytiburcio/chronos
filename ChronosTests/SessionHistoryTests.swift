@@ -59,6 +59,33 @@ final class SessionHistoryTests: XCTestCase {
         XCTAssertEqual(try history().load().count, 1)
     }
 
+    // MARK: - Adjust and delete
+
+    /// Each file is replayed on its own, so an `adjust` sitting in the live log
+    /// for an id that only exists in a rotated log finds no session to correct
+    /// there and is skipped — pinning the storage-layer scope boundary that the
+    /// engine's `notToday` rule enforces one level up.
+    func testAnAdjustInTheLiveLogForARotatedSessionIsIgnored() throws {
+        let project = UUID()
+        let id = UUID()
+        try append(project, at: at(2024, 5, 1), id: id, in: url("sessions-2024.jsonl"))
+        try SessionLog(fileURL: liveURL).append(.adjust(id: id, projectID: nil, start: at(2024, 5, 2), end: nil))
+
+        let sessions = try history().load()
+
+        XCTAssertEqual(sessions.count, 1)
+        XCTAssertEqual(sessions.first?.start, at(2024, 5, 1), "the rotated session is untouched by the stray adjust")
+    }
+
+    func testADeletedSessionIsAbsentFromTheHistory() throws {
+        let project = UUID()
+        let id = UUID()
+        try append(project, at: at(2025, 5, 1), id: id, in: liveURL)
+        try SessionLog(fileURL: liveURL).append(.delete(id: id))
+
+        XCTAssertEqual(try history().load(), [])
+    }
+
     // MARK: - Fixtures
 
     private var liveURL: URL { url("sessions.jsonl") }

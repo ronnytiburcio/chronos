@@ -208,6 +208,33 @@ final class ExporterTests: XCTestCase {
         )
     }
 
+    // MARK: - Edits
+
+    func testExportReflectsAnAdjustedAndADeletedSession() throws {
+        let adjustedID = UUID()
+        let deletedID = UUID()
+        let log = SessionLog(fileURL: sessionsURL)
+        try log.append(.open(id: adjustedID, projectID: clientWork.id, start: at(2025, 9, 2, 9)))
+        try log.append(.close(id: adjustedID, end: at(2025, 9, 2, 10)))
+        try log.append(.open(id: deletedID, projectID: sideProject.id, start: at(2025, 9, 2, 11)))
+        try log.append(.close(id: deletedID, end: at(2025, 9, 2, 11, 30)))
+
+        // Trimmed to thirty minutes, and the other session removed outright.
+        try log.append(.adjust(id: adjustedID, projectID: nil, start: at(2025, 9, 2, 9), end: at(2025, 9, 2, 9, 30)))
+        try log.append(.delete(id: deletedID))
+
+        let csv = try exporter().csv(from: "2025-09-02", to: "2025-09-02", asOf: now)
+
+        XCTAssertEqual(
+            csv,
+            """
+            date,project,seconds,hours
+            2025-09-02,Client Work,1800,0.50
+
+            """
+        )
+    }
+
     // MARK: - Missing files
 
     func testNoLogAtAllExportsAnEmptyFileRatherThanThrowing() throws {

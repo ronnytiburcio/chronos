@@ -66,9 +66,10 @@ final class ReviewWindowController {
 /// already trimmed memory back to the current year — a month view in January
 /// would otherwise lose December.
 ///
-/// Refresh policy, deliberately not per second: on open, whenever the engine
-/// gains or closes a session, when the period changes, and once a minute while
-/// the window is on screen so an open session's numbers keep moving. Reading
+/// Refresh policy, deliberately not per second: on open, whenever
+/// `engine.sessions` changes (a session starting, stopping, being edited, or
+/// being deleted), when the period changes, and once a minute while the
+/// window is on screen so an open session's numbers keep moving. Reading
 /// `engine.now` here would redraw the whole dashboard every tick for a display
 /// that only shows whole minutes.
 struct ReviewScreen: View {
@@ -85,10 +86,11 @@ struct ReviewScreen: View {
         ReviewView(snapshot: snapshot, period: $period)
             .onAppear { refresh() }
             .onChange(of: period) { _, _ in refresh() }
-            // Both together: the count catches a session starting or being
-            // recorded, the id catches the running one being stopped.
-            .onChange(of: engine.sessions.count) { _, _ in refresh() }
-            .onChange(of: engine.openSession?.id) { _, _ in refresh() }
+            // `Session` is `Equatable` and `tick()` only ever touches `now`,
+            // so this fires on every mutation that could change what the
+            // review shows — a session starting, stopping, or being edited or
+            // deleted — and never once a second just because the clock moved.
+            .onChange(of: engine.sessions) { _, _ in refresh() }
             .task {
                 // Cancelled when the window closes, restarted when it reopens.
                 while !Task.isCancelled {

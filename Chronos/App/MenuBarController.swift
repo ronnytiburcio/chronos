@@ -54,6 +54,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             _ = engine.now
             _ = engine.projects
             _ = engine.settings.showElapsedInMenuBar
+            _ = engine.sessions
         } onChange: { [weak self] in
             // Re-arming also refreshes, so the button is redrawn exactly once
             // per change.

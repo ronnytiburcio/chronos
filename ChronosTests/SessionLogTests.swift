@@ -123,6 +123,160 @@ final class SessionLogTests: XCTestCase {
         XCTAssertEqual(sessions.first?.start, start, "the first open wins")
     }
 
+    // MARK: - Adjust and delete
+
+    func testAdjustRoundTripsStartAndEnd() throws {
+        let id = UUID()
+        let newStart = start.addingTimeInterval(120)
+        let newEnd = start.addingTimeInterval(900)
+        try log.append(.open(id: id, projectID: projectID, start: start))
+        try log.append(.close(id: id, end: start.addingTimeInterval(600)))
+
+        try log.append(.adjust(id: id, projectID: nil, start: newStart, end: newEnd))
+
+        let session = try XCTUnwrap(log.loadSessions().first)
+        XCTAssertEqual(session.start, newStart)
+        XCTAssertEqual(session.end, newEnd)
+        XCTAssertEqual(session.projectID, projectID, "a nil projectID leaves it unchanged")
+    }
+
+    func testAdjustJSONOmitsEndWhenNilAndProjectIDWhenUnchanged() throws {
+        let id = UUID()
+        try log.append(.open(id: id, projectID: projectID, start: start))
+
+        try log.append(.adjust(id: id, projectID: nil, start: start.addingTimeInterval(60), end: nil))
+
+        let text = try String(contentsOf: log.fileURL, encoding: .utf8)
+        let lines = text.split(separator: "\n")
+        XCTAssertTrue(lines[1].contains("\"type\":\"adjust\""), String(lines[1]))
+        XCTAssertFalse(lines[1].contains("\"end\""), String(lines[1]))
+        XCTAssertFalse(lines[1].contains("projectID"), String(lines[1]))
+    }
+
+    func testAdjustJSONIncludesProjectIDWhenMoved() throws {
+        let id = UUID()
+        let newProject = UUID()
+        try log.append(.open(id: id, projectID: projectID, start: start))
+
+        try log.append(.adjust(id: id, projectID: newProject, start: start, end: nil))
+
+        let text = try String(contentsOf: log.fileURL, encoding: .utf8)
+        let lines = text.split(separator: "\n")
+        XCTAssertTrue(lines[1].contains("\"projectID\":\"\(newProject.uuidString)\""), String(lines[1]))
+    }
+
+    func testAdjustWithProjectIDMovesTheSessionAndWithoutLeavesItAlone() throws {
+        let id = UUID()
+        let newProject = UUID()
+        try log.append(.open(id: id, projectID: projectID, start: start))
+
+        try log.append(.adjust(id: id, projectID: newProject, start: start, end: nil))
+        XCTAssertEqual(try log.loadSessions().first?.projectID, newProject)
+
+        try log.append(.adjust(id: id, projectID: nil, start: start.addingTimeInterval(30), end: nil))
+        XCTAssertEqual(try log.loadSessions().first?.projectID, newProject, "no projectID leaves the last one in place")
+    }
+
+    func testAdjustWithEndClosesAnOpenSessionAndALaterStrayCloseIsSkipped() throws {
+        let id = UUID()
+        try log.append(.open(id: id, projectID: projectID, start: start))
+        let closedAt = start.addingTimeInterval(1800)
+
+        try log.append(.adjust(id: id, projectID: nil, start: start, end: closedAt))
+        try log.append(.close(id: id, end: start.addingTimeInterval(9999)))
+
+        let session = try XCTUnwrap(log.loadSessions().first)
+        XCTAssertEqual(session.end, closedAt, "the stray close after the adjust closed it is ignored")
+    }
+
+    func testAdjustWithoutEndKeepsAnOpenSessionOpenAndDoesNotReopenAClosedOne() throws {
+        let closedID = UUID()
+        let openID = UUID()
+        try log.append(.open(id: closedID, projectID: projectID, start: start))
+        try log.append(.close(id: closedID, end: start.addingTimeInterval(600)))
+        try log.append(.open(id: openID, projectID: projectID, start: start.addingTimeInterval(700)))
+
+        try log.append(.adjust(id: openID, projectID: nil, start: start.addingTimeInterval(705), end: nil))
+        try log.append(.adjust(id: closedID, projectID: nil, start: start.addingTimeInterval(20), end: nil))
+
+        let sessions = try log.loadSessions()
+        let open = try XCTUnwrap(sessions.first { $0.id == openID })
+        let closed = try XCTUnwrap(sessions.first { $0.id == closedID })
+        XCTAssertTrue(open.isOpen, "the running session stays open")
+        XCTAssertEqual(closed.end, start.addingTimeInterval(600), "the closed session keeps its end rather than reopening")
+    }
+
+    func testLastAdjustWins() throws {
+        let id = UUID()
+        try log.append(.open(id: id, projectID: projectID, start: start))
+
+        try log.append(.adjust(id: id, projectID: nil, start: start.addingTimeInterval(60), end: nil))
+        try log.append(.adjust(id: id, projectID: nil, start: start.addingTimeInterval(120), end: nil))
+
+        XCTAssertEqual(try log.loadSessions().first?.start, start.addingTimeInterval(120))
+    }
+
+    func testAdjustForAnUnknownIDIsSkipped() throws {
+        let id = UUID()
+        try log.append(.open(id: id, projectID: projectID, start: start))
+
+        try log.append(.adjust(id: UUID(), projectID: nil, start: start.addingTimeInterval(60), end: nil))
+
+        XCTAssertEqual(try log.loadSessions().first?.start, start)
+    }
+
+    func testDeleteRemovesTheSession() throws {
+        let id = UUID()
+        try log.append(.open(id: id, projectID: projectID, start: start))
+        try log.append(.close(id: id, end: start.addingTimeInterval(60)))
+
+        try log.append(.delete(id: id))
+
+        XCTAssertEqual(try log.loadSessions(), [])
+    }
+
+    func testDeleteForAnUnknownIDIsSkipped() throws {
+        try log.append(.delete(id: UUID()))
+
+        XCTAssertEqual(try log.loadSessions(), [])
+    }
+
+    func testAFollowingOpenDoesNotForceCloseAGhostFromADeletedSession() throws {
+        let deletedID = UUID()
+        let nextID = UUID()
+        try log.append(.open(id: deletedID, projectID: projectID, start: start))
+        try log.append(.delete(id: deletedID))
+
+        // If the deleted session still read as "open", this open would force
+        // it to close (logging a warning) instead of being ignored outright.
+        try log.append(.open(id: nextID, projectID: projectID, start: start.addingTimeInterval(300)))
+
+        let sessions = try log.loadSessions()
+        XCTAssertEqual(sessions.map(\.id), [nextID])
+        XCTAssertTrue(sessions[0].isOpen)
+    }
+
+    func testAdjustOrCloseAfterDeleteIsIgnored() throws {
+        let id = UUID()
+        try log.append(.open(id: id, projectID: projectID, start: start))
+        try log.append(.delete(id: id))
+
+        try log.append(.close(id: id, end: start.addingTimeInterval(60)))
+        try log.append(.adjust(id: id, projectID: nil, start: start.addingTimeInterval(120), end: nil))
+
+        XCTAssertEqual(try log.loadSessions(), [])
+    }
+
+    func testAnUnknownTypeLineIsSkippedAndTheRestSurvives() throws {
+        let before = UUID()
+        let after = UUID()
+        try log.append(.open(id: before, projectID: projectID, start: start))
+        try appendRaw(#"{"type":"futureKind","id":"\#(UUID().uuidString)"}"#)
+        try log.append(.open(id: after, projectID: projectID, start: start.addingTimeInterval(10)))
+
+        XCTAssertEqual(try log.loadSessions().map(\.id), [before, after])
+    }
+
     // MARK: - Rotation
 
     func testLeadingByteOrderMarkIsIgnored() throws {

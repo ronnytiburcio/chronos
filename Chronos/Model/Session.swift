@@ -8,8 +8,8 @@ import Foundation
 /// a running counter, so sleep, wake, and clock changes cannot drift.
 struct Session: Codable, Identifiable, Equatable, Sendable {
     let id: UUID
-    let projectID: UUID
-    let start: Date
+    var projectID: UUID
+    var start: Date
     var end: Date?
 
     init(id: UUID = UUID(), projectID: UUID, start: Date, end: Date? = nil) {
