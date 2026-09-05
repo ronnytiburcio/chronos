@@ -242,4 +242,98 @@ final class SessionEditingTests: XCTestCase {
             .startBeforeDay
         )
     }
+
+    // MARK: - overlaps
+
+    func testNoOverlapReturnsNothing() {
+        let other = Session(projectID: UUID(), start: at(2025, 9, 4, 9), end: at(2025, 9, 4, 10))
+        let overlapping = SessionEditing.overlaps(
+            start: at(2025, 9, 4, 11),
+            end: at(2025, 9, 4, 12),
+            now: at(2025, 9, 4, 13),
+            excluding: UUID(),
+            among: [other]
+        )
+        XCTAssertTrue(overlapping.isEmpty)
+    }
+
+    func testAPartialOverlapIsReported() {
+        let other = Session(projectID: UUID(), start: at(2025, 9, 4, 9), end: at(2025, 9, 4, 10, 30))
+        let overlapping = SessionEditing.overlaps(
+            start: at(2025, 9, 4, 10),
+            end: at(2025, 9, 4, 11),
+            now: at(2025, 9, 4, 12),
+            excluding: UUID(),
+            among: [other]
+        )
+        XCTAssertEqual(overlapping, [other])
+    }
+
+    func testADraftThatContainsAnotherSessionReportsIt() {
+        let other = Session(projectID: UUID(), start: at(2025, 9, 4, 9, 30), end: at(2025, 9, 4, 9, 45))
+        let overlapping = SessionEditing.overlaps(
+            start: at(2025, 9, 4, 9),
+            end: at(2025, 9, 4, 10),
+            now: at(2025, 9, 4, 12),
+            excluding: UUID(),
+            among: [other]
+        )
+        XCTAssertEqual(overlapping, [other])
+    }
+
+    /// One session ending exactly when the draft begins (or vice versa) is
+    /// adjacency, not overlap.
+    func testTouchingEndpointsAreNotAnOverlap() {
+        let before = Session(projectID: UUID(), start: at(2025, 9, 4, 8), end: at(2025, 9, 4, 9))
+        let after = Session(projectID: UUID(), start: at(2025, 9, 4, 10), end: at(2025, 9, 4, 11))
+        let overlapping = SessionEditing.overlaps(
+            start: at(2025, 9, 4, 9),
+            end: at(2025, 9, 4, 10),
+            now: at(2025, 9, 4, 12),
+            excluding: UUID(),
+            among: [before, after]
+        )
+        XCTAssertTrue(overlapping.isEmpty)
+    }
+
+    /// The session being edited is never reported against itself.
+    func testTheExcludedIDIsIgnored() {
+        let id = UUID()
+        let session = Session(id: id, projectID: UUID(), start: at(2025, 9, 4, 9), end: at(2025, 9, 4, 10))
+        let overlapping = SessionEditing.overlaps(
+            start: at(2025, 9, 4, 9),
+            end: at(2025, 9, 4, 10),
+            now: at(2025, 9, 4, 12),
+            excluding: id,
+            among: [session]
+        )
+        XCTAssertTrue(overlapping.isEmpty)
+    }
+
+    /// An open draft is measured to `now`, exactly like an open session
+    /// everywhere else in Chronos.
+    func testAnOpenDraftIsMeasuredToNow() {
+        let other = Session(projectID: UUID(), start: at(2025, 9, 4, 11), end: at(2025, 9, 4, 11, 30))
+        let overlapping = SessionEditing.overlaps(
+            start: at(2025, 9, 4, 9),
+            end: nil,
+            now: at(2025, 9, 4, 12),
+            excluding: UUID(),
+            among: [other]
+        )
+        XCTAssertEqual(overlapping, [other])
+    }
+
+    func testOverlapsAreSortedByStart() {
+        let later = Session(projectID: UUID(), start: at(2025, 9, 4, 10), end: at(2025, 9, 4, 11))
+        let earlier = Session(projectID: UUID(), start: at(2025, 9, 4, 9), end: at(2025, 9, 4, 9, 45))
+        let overlapping = SessionEditing.overlaps(
+            start: at(2025, 9, 4, 8),
+            end: at(2025, 9, 4, 12),
+            now: at(2025, 9, 4, 13),
+            excluding: UUID(),
+            among: [later, earlier]
+        )
+        XCTAssertEqual(overlapping, [earlier, later])
+    }
 }

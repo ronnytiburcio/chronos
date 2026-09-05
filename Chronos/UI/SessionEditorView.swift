@@ -159,6 +159,17 @@ private struct SessionEditRow: View {
                     .font(.caption)
                     .foregroundStyle(.red)
             }
+
+            // Informational, not an error: Chronos allows overlapping
+            // sessions (SPEC's 2026-09-05 decision), so this never disables
+            // Save — it just tells the user their day total will count this
+            // stretch of time twice. Shown alongside any validation caption
+            // above, not instead of it.
+            if let overlapCaption {
+                Text(overlapCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 2)
         .confirmationDialog(
@@ -217,6 +228,39 @@ private struct SessionEditRow: View {
             dayStart: engine.lastRollover,
             now: engine.clock.now()
         )?.errorDescription
+    }
+
+    /// "Overlaps FPC 09:10–09:40, Chronos 09:30–now" — the other sessions
+    /// today whose span intersects the draft's. Reads `engine.clock.now()`,
+    /// not `engine.now`, so this row is not re-evaluated once a second; it
+    /// only needs "now" to measure an open span, the same instant the
+    /// duration label and the validation caption already use.
+    private var overlapCaption: String? {
+        let now = engine.clock.now()
+        let overlapping = SessionEditing.overlaps(
+            start: draftStart,
+            end: draftEnd,
+            now: now,
+            excluding: session.id,
+            among: engine.sessions.filter { $0.start >= engine.lastRollover }
+        )
+        guard !overlapping.isEmpty else { return nil }
+
+        let timeZone = engine.trackingCalendar.timeZone
+        let descriptions = overlapping.map { other -> String in
+            let name = engine.projects.first { $0.id == other.projectID }?.name ?? "Unknown"
+            let start = Self.timeString(other.start, timeZone: timeZone)
+            let end = other.end.map { Self.timeString($0, timeZone: timeZone) } ?? "now"
+            return "\(name) \(start)–\(end)"
+        }
+        return "Overlaps " + descriptions.joined(separator: ", ")
+    }
+
+    /// `9:41 AM` in `timeZone` — the overlap caption's only date formatting,
+    /// kept separate from `TimeFormatting` because that enum is durations,
+    /// not clock times.
+    private static func timeString(_ date: Date, timeZone: TimeZone) -> String {
+        date.formatted(Date.FormatStyle(timeZone: timeZone).hour().minute())
     }
 
     // MARK: - Bindings

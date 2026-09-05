@@ -48,6 +48,8 @@ a Swift app and not a web app.
 - Crash- and sleep-safe: totals are always recomputed from timestamps, and the
   open session hits disk the instant it starts.
 - Launch at login, project colors, reordering, rename, archive.
+- Edit or delete today's sessions — fix a timer that ran long, reassign it to
+  a different project, or stop a running one at an earlier time.
 - No network code of any kind, and no third-party dependencies.
 
 ## Install
@@ -152,17 +154,36 @@ Everything is a plain file on your Mac. Nothing leaves it.
 ]
 ```
 
-`sessions.jsonl` has two record shapes. An `open` line is written the instant
+`sessions.jsonl` has four record shapes. An `open` line is written the instant
 a timer starts (so a crash can never lose a running session), and a `close`
-line when it stops. Nothing is ever rewritten in place:
+line when it stops:
 
 ```json
 {"id":"3C2A...","projectID":"9F1B...","start":"2026-09-02T13:19:50.000Z","type":"open"}
 {"end":"2026-09-02T15:12:00.000Z","id":"3C2A...","type":"close"}
 ```
 
+Editing a session in the session editor doesn't rewrite either of those lines
+— it appends an `adjust` line instead, and deleting one appends a `delete`
+line. `projectID` is only present on an `adjust` when the session moved to a
+different project, and `end` is only present when it has one (a still-running
+session's `adjust` carries just its new `start`):
+
+```json
+{"id":"3C2A...","start":"2026-09-02T13:30:00.000Z","type":"adjust"}
+{"end":"2026-09-02T14:45:00.000Z","id":"3C2A...","projectID":"7B4E...","start":"2026-09-02T13:30:00.000Z","type":"adjust"}
+{"id":"3C2A...","type":"delete"}
+```
+
+Nothing is ever rewritten in place — for any given session id, the **last
+line wins**: replaying the file from the top, each `adjust` corrects that
+session's start/end/project, and a `delete` removes it outright and ignores
+anything recorded for that id afterward. An older build of Chronos that
+predates `adjust`/`delete` simply skips lines it doesn't recognize and shows
+the session as it was before the edit.
+
 Timestamps in the JSON files are ISO-8601 in UTC. A session with an `open` and
-no `close` is the one currently running.
+no `close` (and no `delete`) is the one currently running.
 
 ### Archive (for reading later)
 
@@ -217,6 +238,37 @@ Two things worth knowing:
 Both CSVs drop straight into Numbers, Sheets, pandas, or whatever you point at
 them.
 
+### Editing today's sessions
+
+Open the session editor from a project row's `•••` menu ("Edit today's
+sessions…") or the menu bar bolt ("Edit Sessions…"). It's for fixing a timer
+you forgot about — one that ran for four hours instead of thirty minutes, or
+got started on the wrong project.
+
+It only lists **today's** sessions — anything with a start at or after the
+last rollover. Earlier days are already written into the append-only archive
+CSVs, so editing one would mean rewriting a day that's already been filed;
+that's a bigger storage change than a v1 editor, and it's on the roadmap.
+
+Each row lets you:
+
+- Reassign the session to a different project.
+- Move its start or end time (a `DatePicker` for each, snapped onto whichever
+  side of the rollover boundary the time you pick actually belongs to — so
+  picking "23:00" for a session that started at 01:30 means the previous
+  evening, not tomorrow).
+- **Stop at…**, for the session that's still running: seeds the end with the
+  current time and lets you dial it back to when you actually stopped.
+- **Delete**, with a confirmation, which removes the session and its time from
+  today's total for good.
+
+Nothing is written until you hit **Save**; **Revert** discards the draft.
+
+Overlapping sessions are allowed. If your edit makes two sessions overlap, the
+row shows an informational caption naming what it overlaps — it never blocks
+Save — and that hour is simply counted in both projects' totals, same as if
+you'd started two timers on purpose.
+
 ## Settings
 
 Open Settings from the panel's ⚙ button or the menu bar bolt.
@@ -229,7 +281,7 @@ Open Settings from the panel's ⚙ button or the menu bar bolt.
 | Write markdown daily notes | On | Whether `daily/YYYY-MM-DD.md` is written. |
 | Show elapsed time in menu bar | On | The `1:52` next to the bolt. |
 | Launch at login | On | Registers Chronos as a login item (`SMAppService`). |
-| Projects | — | Rename, recolor, reorder, archive and unarchive. |
+| Projects | — | Rename, recolor, reorder, archive and unarchive. Today's sessions are edited from a project row's `•••` menu instead — see [Editing today's sessions](#editing-todays-sessions). |
 | Export | — | This week, this month, or a custom range, saved as CSV with the same columns as `daily-summary.csv`. |
 
 ## Review
@@ -260,7 +312,8 @@ timer starts or stops, and once a minute while the window is open.
 Deliberately short. Chronos is meant to stay a simple daily tracker.
 
 - Idle detection with a "keep / discard" prompt.
-- Editing or deleting past sessions.
+- Editing or deleting sessions from earlier days.
+- Adding a session that was never tracked.
 - A global keyboard shortcut to toggle the last-used project.
 - Notes attached to a session.
 

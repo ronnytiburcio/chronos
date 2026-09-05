@@ -77,4 +77,32 @@ enum SessionEditing {
         guard end <= now else { return .endInFuture }
         return nil
     }
+
+    /// The other sessions whose span overlaps the draft's, sorted by start.
+    ///
+    /// Chronos does not forbid overlap (SPEC's 2026-09-05 decision: a session
+    /// moved to the wrong project, then corrected, can legitimately sit on top
+    /// of another one, and the day total is allowed to count that time twice)
+    /// — this only powers the row's informational caption. An open end (the
+    /// draft's or another session's) is measured to `now`, matching how a
+    /// running session is measured everywhere else. Touching endpoints — one
+    /// session ending exactly when another starts — are not an overlap, so the
+    /// comparison is strict on both sides and a zero-length draft can never
+    /// "overlap" its own neighbours.
+    static func overlaps(
+        start: Date,
+        end: Date?,
+        now: Date,
+        excluding id: UUID,
+        among sessions: [Session]
+    ) -> [Session] {
+        let draftEnd = end ?? now
+        return sessions
+            .filter { $0.id != id }
+            .filter { other in
+                let otherEnd = other.end ?? now
+                return other.start < draftEnd && start < otherEnd
+            }
+            .sorted { $0.start < $1.start }
+    }
 }

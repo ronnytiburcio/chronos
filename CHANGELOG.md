@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Session editor.** Fix a timer that ran long, reassign it to a different
+  project, move its start or end, or delete it outright — all scoped to
+  today's sessions, since earlier days are already written into the
+  append-only archive. Opens from a project row's `•••` menu ("Edit today's
+  sessions…") or the menu bar's "Edit Sessions…" item. A running session gets
+  "Stop at…" instead of an end picker, seeded with the current time. Overlaps
+  with other sessions are allowed and shown as an informational caption; they
+  never block Save. Edits are recorded as new `adjust`/`delete` lines in
+  `sessions.jsonl` rather than rewriting anything in place, so an older
+  Chronos build can still read the file.
+
+### Changed
+
+- The review window now refreshes whenever a session changes (an edit, a
+  delete, a new start or stop), not just on a fixed timer — today/week/month
+  totals and the daily chart reflect a correction immediately.
+- A day's session rows in `sessions.csv` and the daily markdown note are now
+  sorted by start, so a session whose start was edited past a neighbour's
+  still lands in the order it actually happened.
+
 ## [0.1.0] - 2026-09-02
 
 ### Added

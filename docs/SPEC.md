@@ -19,7 +19,7 @@ Open source (MIT). Built because nothing on GitHub does this simple loop: fixed 
 - Invoicing, billing rates, or client management.
 - Cloud sync, mobile app, team features.
 - Automatic activity detection (what app/site is open).
-- Manual editing of past sessions (v2).
+- Manual editing of sessions from *previous* days (today's can be corrected in the session editor).
 
 ## 3. Platform & stack
 
@@ -105,7 +105,7 @@ Open source (MIT). Built because nothing on GitHub does this simple loop: fixed 
 ### App data (source of truth)
 `~/Library/Application Support/Chronos/`
 - `projects.json` — `[{ id, name, color, sortOrder, archived }]`
-- `sessions.json` — all sessions, append-only (rotate yearly)
+- `sessions.jsonl` — all sessions, append-only (`open`/`close`/`adjust`/`delete` records, rotate yearly)
 - `state.json` — window position, open session id, last rollover date, settings
 
 ### Human-readable archive (for review later)
@@ -141,6 +141,15 @@ CSV first, because it drops straight into Numbers/Sheets/Python and can feed a d
 - Show elapsed time in menu bar (on/off)
 - Manage projects (reorder, rename, color, archive/unarchive)
 - Export date range
+
+### Session editor
+A small dedicated window, opened from a project row's `•••` menu ("Edit today's sessions…") or the menu bar's "Edit Sessions…" item, for fixing a timer that ran too long or was started on the wrong project.
+
+- **Today only.** It lists sessions whose start is at or after the last rollover. Everything older has already been written into the append-only archive CSVs, so correcting it would mean rewriting a day that has been filed — out of scope until that becomes its own storage change (v2, see §14).
+- Each row shows the project, a start time picker, and either an end time picker or "Running" with a "Stop at…" button that stops the timer as of the picked time.
+- A row can be reassigned to a different project, corrected, or deleted (with a confirmation).
+- Overlapping sessions are allowed and shown: the row surfaces an informational caption naming what it overlaps, but never blocks Save. An hour that lands in two overlapping sessions is counted in both totals.
+- A time picker only shows hours and minutes, so a value near midnight is snapped onto whichever side of the 04:00 (default) rollover boundary it actually belongs to — a session that started at 01:30 and a "23:00" pick means the previous evening, not 22 hours in the future.
 
 ## 9. Visual design
 
@@ -239,7 +248,8 @@ Chronos is a public GitHub repository. Build it as a project other people can cl
 ## 14. Later (v2 ideas)
 
 - Idle detection with "keep / discard" prompt.
-- Edit or delete past sessions.
+- Edit or delete sessions from earlier days (re-archiving).
+- Add a session that was never tracked (needs its own `add` record: an `open`+`close` pair would trip replay's force-close rule).
 - Weekly/monthly review view inside the app, styled like the Financial Snapshot dashboard.
 - Global keyboard shortcut to toggle the last-used project.
 - Notes tagged to a session.
