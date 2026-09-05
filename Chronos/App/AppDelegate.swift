@@ -13,6 +13,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settings: SettingsWindowController?
     /// Same again for the review window.
     private var review: ReviewWindowController?
+    /// And for the session editor, which additionally keeps its project filter
+    /// so a second "Edit today's sessions…" re-filters the same window.
+    private var sessionEditor: SessionEditorWindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // The unit tests use this app as their host; they must not put a panel
@@ -43,13 +46,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             isPanelVisible: { [weak self] in self?.panel?.isVisible ?? false },
             togglePanel: { [weak self] in self?.panel?.toggle() },
             openReview: { [weak self] in self?.openReview() },
+            openSessionEditor: { [weak self] in self?.openSessionEditor(projectID: nil) },
             openSettings: { [weak self] in self?.openSettings() }
         )
 
         let actions = PanelActions(
             onReset: { engine.resetDay() },
             onOpenReview: { [weak self] in self?.openReview() },
-            onOpenSettings: { [weak self] in self?.openSettings() }
+            onOpenSettings: { [weak self] in self?.openSettings() },
+            onOpenSessionEditor: { [weak self] id in self?.openSessionEditor(projectID: id) }
         )
         let panel = PanelController(
             engine: engine,
@@ -61,8 +66,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.show()
         self.panel = panel
 
-        // Development and screenshot hooks: `CHRONOS_OPEN_SETTINGS=1` or
-        // `CHRONOS_OPEN_REVIEW=1` puts that window on screen at launch, which
+        // Development and screenshot hooks: `CHRONOS_OPEN_SETTINGS=1`,
+        // `CHRONOS_OPEN_REVIEW=1` or `CHRONOS_OPEN_SESSIONS=1` puts that
+        // window on screen at launch, which
         // is otherwise a two-click journey through a menu bar item. `open`
         // does not forward the variable; run the binary inside the bundle.
         let environment = ProcessInfo.processInfo.environment
@@ -71,6 +77,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if environment["CHRONOS_OPEN_REVIEW"] == "1" {
             openReview()
+        }
+        if environment["CHRONOS_OPEN_SESSIONS"] == "1" {
+            openSessionEditor(projectID: nil)
         }
     }
 
@@ -98,6 +107,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let controller = review ?? ReviewWindowController(engine: engine)
         review = controller
         controller.show()
+    }
+
+    /// Opens the session editor, building it the first time, and points it at
+    /// `projectID` (`nil` shows every project). Kept like the other two so a
+    /// second open re-filters the existing window rather than stacking a new
+    /// one.
+    private func openSessionEditor(projectID: UUID?) {
+        guard let engine else { return }
+        let controller = sessionEditor ?? SessionEditorWindowController(engine: engine)
+        sessionEditor = controller
+        controller.show(projectID: projectID)
     }
 
     func applicationWillTerminate(_ notification: Notification) {

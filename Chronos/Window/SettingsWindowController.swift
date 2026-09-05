@@ -4,8 +4,8 @@ import SwiftUI
 /// Owns the settings window: an ordinary titled window, created on first open
 /// and reused afterwards.
 ///
-/// This and ``ReviewWindowController`` are the only places in Chronos that
-/// call `NSApp.activate`. Everything
+/// This, ``ReviewWindowController`` and ``SessionEditorWindowController`` are
+/// the three places in Chronos that call `NSApp.activate`. Everything
 /// else goes out of its way *not* to steal focus (the desktop panel never
 /// activates the app at all), but a settings window the user has just asked for
 /// has to come forward and take the keyboard — Chronos is an `LSUIElement`

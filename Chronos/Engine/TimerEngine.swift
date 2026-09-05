@@ -313,8 +313,11 @@ final class TimerEngine {
     /// Corrects a session that started today (SPEC v1's scope): its project,
     /// start, and/or end. Validation runs in a fixed order so the first
     /// problem found is always the one reported: unknown session, not today,
-    /// unknown project, start before the day began, start in the future,
-    /// reopening a closed session, end before start, end in the future.
+    /// unknown project, and then whatever
+    /// ``SessionEditing/validationError(start:end:isOpen:dayStart:now:)`` finds
+    /// — start before the day began, start in the future, reopening a closed
+    /// session, end before start, end in the future. Those timestamp rules are
+    /// written down once, there, and the editor row asks the same function.
     ///
     /// `end == nil` is only valid for a session that is already open — an
     /// edit can never reopen a closed one. Passing the open session's own
@@ -332,24 +335,16 @@ final class TimerEngine {
             throw SessionEditError.unknownProject
         }
         let session = sessions[index]
-        guard start >= lastRollover else {
-            throw SessionEditError.startBeforeDay
-        }
-        guard start <= clock.now() else {
-            throw SessionEditError.startInFuture
-        }
-        if end == nil {
-            guard session.isOpen else {
-                throw SessionEditError.cannotReopen
-            }
-        }
-        if let end {
-            guard end >= start else {
-                throw SessionEditError.endBeforeStart
-            }
-            guard end <= clock.now() else {
-                throw SessionEditError.endInFuture
-            }
+        // The timestamp rules live in `SessionEditing` so the editor row and
+        // the engine cannot disagree about what is wrong with a draft.
+        if let error = SessionEditing.validationError(
+            start: start,
+            end: end,
+            isOpen: session.isOpen,
+            dayStart: lastRollover,
+            now: clock.now()
+        ) {
+            throw error
         }
 
         // A no-op edit appends nothing, like `updateSettings`.

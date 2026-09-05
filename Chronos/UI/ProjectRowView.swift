@@ -8,6 +8,7 @@ struct ProjectRowActions {
     var onSetColor: (String?) -> Void
     var onMove: (MoveDirection) -> Void
     var onArchive: () -> Void
+    var onEditSessions: () -> Void
 }
 
 /// One project in the panel list (SPEC §5, "Project row").
@@ -112,16 +113,18 @@ struct ProjectRowView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(Text("Project menu"))
-        .help("Rename, color, reorder, archive")
+        .help("Rename, color, reorder, edit today's sessions, archive")
     }
 
-    /// Rename, Change color, Move up/down, Archive — as an AppKit menu, which
+    /// Rename, Edit today's sessions, Change color, Move up/down, Archive — as
+    /// an AppKit menu, which
     /// is the only kind that opens while Chronos is not the active app.
     private func buildMenu() -> NSMenu {
         let menu = NSMenu()
         menu.autoenablesItems = false
 
         menu.addItem(ClosureMenuItem("Rename") { beginRenaming() })
+        menu.addItem(ClosureMenuItem("Edit today's sessions…") { actions.onEditSessions() })
 
         let colors = NSMenu()
         colors.autoenablesItems = false

@@ -339,13 +339,6 @@ final class ReviewStatsTests: XCTestCase {
 
     // MARK: - Fixtures
 
-    private static let newYorkCalendar: Calendar = {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "America/New_York")!
-        calendar.locale = Locale(identifier: "en_US_POSIX")
-        return calendar
-    }()
-
     /// Thursday 2025-09-04 12:00, the default vantage point for these tests.
     private func snapshot(
         _ sessions: [Session],
@@ -359,7 +352,7 @@ final class ReviewStatsTests: XCTestCase {
             period: period,
             now: now ?? at(2025, 9, 4, 12),
             rollover: .default,
-            calendar: Self.newYorkCalendar
+            calendar: Calendar.newYork
         )
     }
 
@@ -381,11 +374,5 @@ final class ReviewStatsTests: XCTestCase {
 
     private func running(_ project: Project, from start: Date) -> Session {
         Session(projectID: project.id, start: start)
-    }
-
-    private func at(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
-        Self.newYorkCalendar.date(
-            from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute)
-        )!
     }
 }

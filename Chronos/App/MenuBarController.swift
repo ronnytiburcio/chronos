@@ -19,6 +19,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let isPanelVisible: () -> Bool
     private let togglePanel: () -> Void
     private let openReview: () -> Void
+    private let openSessionEditor: () -> Void
     private let openSettings: () -> Void
 
     init(
@@ -26,12 +27,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         isPanelVisible: @escaping () -> Bool,
         togglePanel: @escaping () -> Void,
         openReview: @escaping () -> Void,
+        openSessionEditor: @escaping () -> Void,
         openSettings: @escaping () -> Void
     ) {
         self.engine = engine
         self.isPanelVisible = isPanelVisible
         self.togglePanel = togglePanel
         self.openReview = openReview
+        self.openSessionEditor = openSessionEditor
         self.openSettings = openSettings
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
@@ -163,6 +166,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         review.target = self
         menu.addItem(review)
 
+        let sessions = NSMenuItem(
+            title: "Edit Sessions…",
+            action: #selector(openSessionEditorAction),
+            keyEquivalent: ""
+        )
+        sessions.target = self
+        menu.addItem(sessions)
+
         let settings = NSMenuItem(
             title: "Settings…",
             action: #selector(openSettingsAction),
@@ -218,6 +229,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func openReviewAction() {
         openReview()
+    }
+
+    @objc private func openSessionEditorAction() {
+        openSessionEditor()
     }
 
     @objc private func openSettingsAction() {

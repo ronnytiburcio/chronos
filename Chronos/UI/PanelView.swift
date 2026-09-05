@@ -5,6 +5,9 @@ struct PanelActions {
     var onReset: () -> Void
     var onOpenReview: () -> Void
     var onOpenSettings: () -> Void
+    /// Opens the session editor, filtered to one project or (with `nil`) to
+    /// every project.
+    var onOpenSessionEditor: (UUID?) -> Void
 }
 
 /// The desktop panel's content (SPEC §5): header, project rows, footer.
@@ -94,7 +97,8 @@ struct PanelView: View {
             onRename: { engine.renameProject(project.id, to: $0) },
             onSetColor: { engine.setColor($0, for: project.id) },
             onMove: { engine.moveProject(project.id, direction: $0) },
-            onArchive: { engine.archiveProject(project.id) }
+            onArchive: { engine.archiveProject(project.id) },
+            onEditSessions: { actions.onOpenSessionEditor(project.id) }
         )
     }
 }

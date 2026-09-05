@@ -4,8 +4,9 @@ import SwiftUI
 /// Owns the review window (Phase 9): an ordinary titled window in the app's own
 /// dark clothes, created on first open and reused afterwards.
 ///
-/// This is the **second** place in Chronos that calls `NSApp.activate`, after
-/// ``SettingsWindowController``, and for the same reason: Chronos is an
+/// This is the **second** of the three places in Chronos that call
+/// `NSApp.activate` — after ``SettingsWindowController`` and before
+/// ``SessionEditorWindowController`` — and for the same reason: Chronos is an
 /// `LSUIElement` agent, so a window it puts on screen opens behind whatever is
 /// frontmost and ignores the keyboard until the app is activated. The desktop
 /// panel still never activates anything — that rule is about the panel, not

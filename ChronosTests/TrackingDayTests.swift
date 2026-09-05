@@ -9,7 +9,7 @@ final class TrackingDayTests: XCTestCase {
 
     override func setUp() {
         super.setUp()
-        calendar = Self.newYorkCalendar
+        calendar = Calendar.newYork
     }
 
     override func tearDown() {
@@ -228,18 +228,11 @@ final class TrackingDayTests: XCTestCase {
         return date
     }
 
-    private static let newYorkCalendar: Calendar = {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "America/New_York")!
-        calendar.locale = Locale(identifier: "en_US_POSIX")
-        return calendar
-    }()
-
     /// Parses wall-clock New York time, which is what the DST cases are about.
     private static let parser: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.calendar = newYorkCalendar
-        formatter.timeZone = newYorkCalendar.timeZone
+        formatter.calendar = Calendar.newYork
+        formatter.timeZone = Calendar.newYork.timeZone
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return formatter
