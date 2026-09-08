@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Averages in the review window.** A new "Average per tracked day" table
+  under the project bars shows how long each project takes on a typical day,
+  at three scopes at once: this week, this month, and all time. The divisor is
+  the days that have any time on them rather than the days that have elapsed,
+  so a weekend off does not drag the number down, and the columns add up to
+  your average tracked day. A scope with nothing in it shows a dash instead of
+  `0h 0m`. Unlike everything else in the window the table does not follow the
+  Day / Week / Month control, so switching periods never reshuffles it.
+- The daily chart now carries that same average as a dashed gold rule, with
+  the value beside the section heading. It sits above where the bars look like
+  they average out, because the empty days are left out of it.
+
+### Changed
+
+- The review window is 720pt tall rather than 620, so the new table fits
+  without the window opening already scrolled.
+- The `Average on tracked days` insight line is gone: the chart's dashed rule
+  is the same number, and the window should not state it twice.
+
 ## [0.2.0] - 2026-09-05
 
 ### Added

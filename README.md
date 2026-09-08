@@ -42,8 +42,9 @@ a Swift app and not a web app.
 - Plain-file archive: `daily-summary.csv`, `sessions.csv`, and a markdown note
   per day.
 - CSV export for this week, this month, or any date range.
-- A review window with today/week/month totals, per-project bars, a daily bar
-  chart, and a few plain-English insights.
+- A review window with today/week/month totals, per-project bars, how long you
+  spend on each project on an average day, a daily bar chart, and a few
+  plain-English insights.
 - Menu bar bolt with the running project, elapsed time, quick-start, and Quit.
 - Crash- and sleep-safe: totals are always recomputed from timestamps, and the
   open session hits disk the instant it starts.
@@ -297,14 +298,23 @@ disk, rotated logs included:
   difference is normally negative.
 - **By project** — the selected period split into bars, biggest first.
   Archived projects show up when they have time on them.
+- **Average per tracked day** — the same projects again, but as a typical day
+  rather than a total, at three scopes side by side: this week, this month, and
+  all time. Each number is that project's time in the scope divided by the days
+  in it that have *any* time on them, so days off do not drag it down and "1h
+  50m all time" means a real working day. A scope you have not touched shows a
+  dash. The columns add up: read one down and you get your average tracked day.
 - **A daily chart** — the last 7 tracking days (Day and Week) or the last 30
-  (Month), with today in red. Empty days are drawn as empty days.
-- **Insights** — busiest day, average across the days you actually tracked,
-  your current streak, and the single longest session in the period. A line is
-  left out rather than padded when there is nothing to say.
+  (Month), with today in red. Empty days are drawn as empty days. The dashed
+  gold rule is the average across the days in the window that have time on
+  them, which is the same measure the table above uses — it sits above where
+  the bars look like they average out, because the empty days are not in it.
+- **Insights** — busiest day, your current streak, and the single longest
+  session in the period. A line is left out rather than padded when there is
+  nothing to say.
 
 The Day / Week / Month control drives the bars, the chart, and the insights;
-the three totals stay put. Numbers refresh when you open the window, when a
+the three totals and the averages table stay put. Numbers refresh when you open the window, when a
 timer starts or stops, and once a minute while the window is open.
 
 ## Roadmap

@@ -72,6 +72,25 @@ struct ProjectShare: Identifiable, Equatable, Sendable {
     var id: Project.ID { project.id }
 }
 
+/// One project's average day, at the three scopes the averages table shows.
+///
+/// Each number is the project's time in that scope divided by the tracking days
+/// in it that have **any** time on them, so a day off does not drag it down.
+/// That is the window's one definition of an average — the dashed rule across
+/// the daily chart is the same measure. A scope with nothing tracked in it
+/// reads as zero.
+struct ProjectAverage: Identifiable, Equatable, Sendable {
+    let project: Project
+    /// Seconds per tracked day, this week.
+    let week: TimeInterval
+    /// Seconds per tracked day, this month.
+    let month: TimeInterval
+    /// Seconds per tracked day over the whole history.
+    let allTime: TimeInterval
+
+    var id: Project.ID { project.id }
+}
+
 /// One bar of the daily chart: a whole tracking day, zero included.
 struct DayTotal: Identifiable, Equatable, Sendable {
     /// The instant the tracking day began (the rollover), which is what the
@@ -95,8 +114,16 @@ struct ReviewSnapshot: Equatable, Sendable {
     /// The selected period by project, biggest first, projects with no time
     /// left out. Archived projects appear when they have time.
     let breakdown: [ProjectShare]
+    /// Every project with time anywhere in the history, biggest all-time first,
+    /// each with its average tracked day this week, this month, and over the
+    /// whole history. Unlike ``breakdown`` this does not follow ``period``: it
+    /// always shows all three scopes, the way ``totals`` does.
+    let averages: [ProjectAverage]
     /// The last 7 (day, week) or 30 (month) tracking days, oldest first.
     let daily: [DayTotal]
+    /// The mean of the days in ``daily`` that have time on them — the dashed
+    /// rule across the chart. Zero when nothing in the window was tracked.
+    let dailyAverageSeconds: TimeInterval
     /// Short lines of the "here is what that means" kind.
     let insights: [String]
     /// The calendar the days were measured in. The chart bins and labels its
@@ -113,7 +140,17 @@ struct ReviewSnapshot: Equatable, Sendable {
 
     /// A snapshot with no data, for a view that has not refreshed yet.
     static func empty(period: ReviewPeriod = .week, calendar: Calendar = .current) -> ReviewSnapshot {
-        ReviewSnapshot(period: period, totals: [], breakdown: [], daily: [], insights: [], calendar: calendar, hasHistory: false)
+        ReviewSnapshot(
+            period: period,
+            totals: [],
+            breakdown: [],
+            averages: [],
+            daily: [],
+            dailyAverageSeconds: 0,
+            insights: [],
+            calendar: calendar,
+            hasHistory: false
+        )
     }
 }
 
@@ -160,6 +197,14 @@ enum ReviewStats {
 
         let selected = range(for: period, containing: today, rollover: rollover, calendar: calendar)
         let breakdown = breakdown(of: sessions, projects: projects, in: selected, asOf: now)
+        let averages = averages(
+            of: sessions,
+            projects: projects,
+            endingAt: today,
+            rollover: rollover,
+            calendar: calendar,
+            asOf: now
+        )
         let daily = dailySeries(
             of: sessions,
             length: period.dailySeriesLength,
@@ -183,7 +228,9 @@ enum ReviewStats {
             period: period,
             totals: totals,
             breakdown: breakdown,
+            averages: averages,
             daily: daily,
+            dailyAverageSeconds: averageOnTrackedDays(in: daily),
             insights: insights,
             calendar: calendar,
             hasHistory: sessions.contains { $0.duration(asOf: now) > 0 }
@@ -307,6 +354,22 @@ enum ReviewStats {
 
     // MARK: - Breakdown
 
+    /// Every project's seconds inside `range`, keyed by project id — ids no
+    /// current project claims included, which is what makes the fractions in
+    /// ``breakdown(of:projects:in:asOf:)`` shares of the period's real total.
+    static func secondsByProject(
+        of sessions: [Session],
+        in range: Range<Date>,
+        asOf now: Date
+    ) -> [UUID: TimeInterval] {
+        let cap = min(range.upperBound, now)
+        var byProject: [UUID: TimeInterval] = [:]
+        for session in sessions where range.contains(session.start) {
+            byProject[session.projectID, default: 0] += clippedDuration(of: session, cap: cap)
+        }
+        return byProject
+    }
+
     /// The period by project: biggest first, nothing with zero time, fractions
     /// of the period's own total.
     static func breakdown(
@@ -315,28 +378,150 @@ enum ReviewStats {
         in range: Range<Date>,
         asOf now: Date
     ) -> [ProjectShare] {
-        let cap = min(range.upperBound, now)
-        var byProject: [UUID: TimeInterval] = [:]
-        for session in sessions where range.contains(session.start) {
-            byProject[session.projectID, default: 0] += clippedDuration(of: session, cap: cap)
-        }
+        let byProject = secondsByProject(of: sessions, in: range, asOf: now)
 
         let total = byProject.values.reduce(0, +)
         guard total > 0 else { return [] }
 
-        return projects
-            .compactMap { project -> ProjectShare? in
-                guard let seconds = byProject[project.id], seconds > 0 else { return nil }
-                return ProjectShare(project: project, seconds: seconds, fraction: seconds / total)
-            }
-            // Ties keep the panel's project order, which is the order
-            // `projects` arrives in.
+        let shares = projects.compactMap { project -> ProjectShare? in
+            guard let seconds = byProject[project.id], seconds > 0 else { return nil }
+            return ProjectShare(project: project, seconds: seconds, fraction: seconds / total)
+        }
+        return biggestFirst(shares) { $0.seconds }
+    }
+
+    /// `values` biggest first, ties keeping the order they arrived in — which
+    /// for a list built from `projects` is the panel's own order.
+    ///
+    /// The index is carried through the sort because `sorted(by:)` is not
+    /// promised to be stable, and two projects with the same time must not
+    /// swap places between one refresh and the next.
+    private static func biggestFirst<Row>(
+        _ values: [Row],
+        by measure: (Row) -> TimeInterval
+    ) -> [Row] {
+        values
             .enumerated()
             .sorted { lhs, rhs in
-                if lhs.element.seconds != rhs.element.seconds { return lhs.element.seconds > rhs.element.seconds }
+                let left = measure(lhs.element), right = measure(rhs.element)
+                if left != right { return left > right }
                 return lhs.offset < rhs.offset
             }
             .map(\.element)
+    }
+
+    // MARK: - Averages
+
+    /// Every project's average tracked day at the three scopes the averages
+    /// table shows, biggest all-time first.
+    ///
+    /// A project appears when it has time anywhere in the history — archived
+    /// ones included, like ``breakdown(of:projects:in:asOf:)`` — and the three
+    /// scopes are fixed, so the table does not change shape when the period
+    /// control does. Ties keep the panel's project order.
+    ///
+    /// Six passes over the history, one per number per scope, which is the
+    /// readable shape. Bucketing every session by tracking day once and
+    /// deriving all three scopes from that is the optimisation, if a very long
+    /// history ever makes it worth the density.
+    static func averages(
+        of sessions: [Session],
+        projects: [Project],
+        endingAt today: Date,
+        rollover: RolloverTime,
+        calendar: Calendar,
+        asOf now: Date
+    ) -> [ProjectAverage] {
+        func scope(_ range: Range<Date>) -> AverageScope {
+            AverageScope(of: sessions, in: range, rollover: rollover, calendar: calendar, asOf: now)
+        }
+
+        let week = scope(range(for: .week, containing: today, rollover: rollover, calendar: calendar))
+        let month = scope(range(for: .month, containing: today, rollover: rollover, calendar: calendar))
+        let allTime = scope(allTimeRange(of: sessions, endingAt: today, rollover: rollover, calendar: calendar))
+
+        let rows = projects.compactMap { project -> ProjectAverage? in
+            let lifetime = allTime.perDay(project.id)
+            guard lifetime > 0 else { return nil }
+            return ProjectAverage(
+                project: project,
+                week: week.perDay(project.id),
+                month: month.perDay(project.id),
+                allTime: lifetime
+            )
+        }
+        return biggestFirst(rows) { $0.allTime }
+    }
+
+    /// One scope of ``averages(of:projects:endingAt:rollover:calendar:asOf:)``
+    /// once it has been measured: what each project spent inside it, over the
+    /// days inside it that carry any time at all.
+    private struct AverageScope {
+        let secondsByProject: [UUID: TimeInterval]
+        let trackedDays: Int
+
+        init(
+            of sessions: [Session],
+            in range: Range<Date>,
+            rollover: RolloverTime,
+            calendar: Calendar,
+            asOf now: Date
+        ) {
+            secondsByProject = ReviewStats.secondsByProject(of: sessions, in: range, asOf: now)
+            trackedDays = ReviewStats.trackedDayCount(
+                of: sessions,
+                in: range,
+                rollover: rollover,
+                calendar: calendar,
+                asOf: now
+            )
+        }
+
+        /// The project's seconds spread over the scope's tracked days, and zero
+        /// when there is neither.
+        func perDay(_ projectID: UUID) -> TimeInterval {
+            guard let seconds = secondsByProject[projectID], trackedDays > 0 else { return 0 }
+            return seconds / Double(trackedDays)
+        }
+    }
+
+    /// The tracking days inside `range` that have any time at all on them.
+    ///
+    /// Sessions are bucketed by the day they start in rather than the calendar
+    /// being walked a day at a time: the all-time range is years long, and only
+    /// a day carrying a session can be a tracked day.
+    static func trackedDayCount(
+        of sessions: [Session],
+        in range: Range<Date>,
+        rollover: RolloverTime,
+        calendar: Calendar,
+        asOf now: Date
+    ) -> Int {
+        let cap = min(range.upperBound, now)
+        var days: Set<Date> = []
+        for session in sessions where range.contains(session.start) {
+            guard clippedDuration(of: session, cap: cap) > 0 else { continue }
+            days.insert(TrackingDay.start(containing: session.start, rollover: rollover, calendar: calendar))
+        }
+        return days.count
+    }
+
+    /// The whole history as a range: the tracking day the earliest session began
+    /// through the end of `today`'s. No sessions means today alone.
+    ///
+    /// The lower bound is clamped to `today` because a session dated into the
+    /// future — a clock jump — would otherwise build an inverted `Range`, and
+    /// that traps rather than reading as empty.
+    static func allTimeRange(
+        of sessions: [Session],
+        endingAt today: Date,
+        rollover: RolloverTime,
+        calendar: Calendar
+    ) -> Range<Date> {
+        let end = TrackingDay.next(after: today, rollover: rollover, calendar: calendar)
+        guard let earliest = sessions.map(\.start).min() else { return today..<end }
+        let start = TrackingDay.start(containing: earliest, rollover: rollover, calendar: calendar)
+        return min(start, today)..<end
     }
 
     // MARK: - Daily series
@@ -373,17 +558,29 @@ enum ReviewStats {
         }
     }
 
+    /// The mean of the days in `daily` that have any time on them, empty days
+    /// left out. Zero when none of them do.
+    ///
+    /// One function so the chart's dashed rule and the averages table can never
+    /// mean two different things by "average": both are per **tracked** day.
+    static func averageOnTrackedDays(in daily: [DayTotal]) -> TimeInterval {
+        let tracked = daily.filter { $0.seconds > 0 }
+        guard !tracked.isEmpty else { return 0 }
+        return tracked.reduce(0) { $0 + $1.seconds } / Double(tracked.count)
+    }
+
     // MARK: - Insights
 
     /// The short lines under the chart. Each one is omitted rather than
     /// hedged when there is nothing to say.
     ///
-    /// Busiest day and average describe the days the chart shows and say so
-    /// ("last 7 days"), so neither can name a day the chart does not. The
-    /// longest session follows the selected period, like the breakdown does,
-    /// and says which ("today", "this week"). The streak keeps counting back
-    /// past the chart, because a 40-day streak that reads "7-day streak" is
-    /// wrong, not merely windowed.
+    /// The busiest day describes the days the chart shows and says so ("last 7
+    /// days"), so it can never name a day the chart does not. The average over
+    /// those same days is the chart's own dashed rule rather than a line here,
+    /// so the window states it once. The longest session follows the selected
+    /// period, like the breakdown does, and says which ("today", "this week").
+    /// The streak keeps counting back past the chart, because a 40-day streak
+    /// that reads "7-day streak" is wrong, not merely windowed.
     static func insights(
         sessions: [Session],
         projects: [Project],
@@ -406,11 +603,6 @@ enum ReviewStats {
         if let busiest {
             let label = dayLabel(for: busiest.dayStart, calendar: calendar)
             lines.append("Busiest day (\(window)): \(label), \(TimeFormatting.hoursMinutes(busiest.seconds))")
-        }
-
-        if !active.isEmpty {
-            let average = active.reduce(0) { $0 + $1.seconds } / Double(active.count)
-            lines.append("Average on tracked days (\(window)): \(TimeFormatting.hoursMinutes(average))")
         }
 
         let streak = currentStreak(in: daily, continuingWith: sessions, rollover: rollover, calendar: calendar, asOf: now)

@@ -180,6 +180,187 @@ final class ReviewStatsTests: XCTestCase {
         XCTAssertEqual(seconds(snapshot(sessions).totals, .day), 3 * 3600)
     }
 
+    // MARK: - Averages
+
+    /// The table's promise: a project's time in a scope over the days that
+    /// scope actually has time on them — not the days that have elapsed.
+    func testAnAverageIsTheScopeTotalOverTheDaysYouActuallyTracked() {
+        let sessions = [
+            // Friday the 1st of August: all time only.
+            closed(clientWork, from: at(2025, 8, 1, 9), to: at(2025, 8, 1, 18)),
+            // Sunday the 31st: this week began that day, but it is still August.
+            closed(clientWork, from: at(2025, 8, 31, 9), to: at(2025, 8, 31, 11)),
+            // Wednesday the 3rd: this week and this month.
+            closed(clientWork, from: at(2025, 9, 3, 9), to: at(2025, 9, 3, 13)),
+        ]
+
+        let averages = snapshot(sessions).averages
+
+        XCTAssertEqual(averages.map(\.project.name), ["Client Work"])
+        // 6h over the 2 tracked days of the 5 elapsed since Sunday.
+        XCTAssertEqual(averages[0].week, 3 * 3600, accuracy: 0.5)
+        // 4h over September's 1 tracked day.
+        XCTAssertEqual(averages[0].month, 4 * 3600, accuracy: 0.5)
+        // 15h over 3 tracked days.
+        XCTAssertEqual(averages[0].allTime, 5 * 3600, accuracy: 0.5)
+    }
+
+    /// A week that begins in the previous month is still this week.
+    func testAWeekStraddlingTwoMonthsCountsInTheWeekAndNotTheMonth() {
+        let sessions = [closed(clientWork, from: at(2025, 8, 31, 9), to: at(2025, 8, 31, 11))]
+
+        let averages = snapshot(sessions).averages
+
+        XCTAssertEqual(averages[0].week, 2 * 3600, accuracy: 0.5)
+        XCTAssertEqual(averages[0].month, 0)
+        XCTAssertEqual(averages[0].allTime, 2 * 3600, accuracy: 0.5)
+    }
+
+    func testAScopeWithNothingTrackedInItAveragesToZero() {
+        let sessions = [closed(clientWork, from: at(2025, 3, 1, 9), to: at(2025, 3, 1, 10))]
+
+        let averages = snapshot(sessions).averages
+
+        XCTAssertEqual(averages.count, 1)
+        XCTAssertEqual(averages[0].week, 0)
+        XCTAssertEqual(averages[0].month, 0)
+        XCTAssertEqual(averages[0].allTime, 3600, accuracy: 0.5)
+    }
+
+    /// The chart stops at 7 or 30 days; the all-time column does not.
+    func testTheAllTimeAverageReachesPastTheChartWindow() {
+        let sessions = [
+            closed(clientWork, from: at(2025, 6, 1, 9), to: at(2025, 6, 1, 12)),
+            closed(clientWork, from: at(2025, 9, 4, 9), to: at(2025, 9, 4, 10)),
+        ]
+
+        let result = snapshot(sessions, period: .month)
+
+        XCTAssertEqual(result.daily.count, 30, "the chart window is unchanged")
+        // 4h over the 2 tracked days, one of them a quarter of a year back.
+        XCTAssertEqual(result.averages[0].allTime, 2 * 3600, accuracy: 0.5)
+    }
+
+    func testAveragesAreBiggestAllTimeFirstAndTiesKeepProjectOrder() {
+        let sessions = [
+            closed(admin, from: at(2025, 9, 2, 9), to: at(2025, 9, 2, 13)),
+            closed(clientWork, from: at(2025, 9, 3, 9), to: at(2025, 9, 3, 11)),
+            closed(sideProject, from: at(2025, 9, 4, 9), to: at(2025, 9, 4, 11)),
+        ]
+
+        let averages = snapshot(sessions).averages
+
+        // Admin is archived and still appears; the two 2h projects tie and keep
+        // the order the panel lists them in.
+        XCTAssertEqual(averages.map(\.project.name), ["Admin", "Client Work", "Side Project"])
+        XCTAssertEqual(averages[1].allTime, averages[2].allTime)
+    }
+
+    func testAProjectWithNoTimeAnywhereIsLeftOutOfTheAverages() {
+        let sessions = [closed(clientWork, from: at(2025, 9, 4, 9), to: at(2025, 9, 4, 10))]
+
+        XCTAssertEqual(snapshot(sessions).averages.map(\.project.name), ["Client Work"])
+    }
+
+    /// The tracked-day count is a set of day starts, so two sessions on the
+    /// same tracking day have to resolve to the very same instant or the
+    /// divisor quietly doubles.
+    func testTwoSessionsOnOneDayAreOneTrackedDay() {
+        let sessions = [
+            closed(clientWork, from: at(2025, 9, 4, 9), to: at(2025, 9, 4, 11)),
+            closed(sideProject, from: at(2025, 9, 4, 14), to: at(2025, 9, 4, 15)),
+            // And one either side of midnight, still the same tracking day.
+            closed(clientWork, from: at(2025, 9, 5, 1), to: at(2025, 9, 5, 2)),
+        ]
+        let now = at(2025, 9, 5, 3)
+
+        XCTAssertEqual(
+            ReviewStats.trackedDayCount(
+                of: sessions,
+                in: ReviewStats.range(
+                    for: .week,
+                    containing: TrackingDay.start(containing: now, rollover: .default, calendar: .newYork),
+                    rollover: .default,
+                    calendar: .newYork
+                ),
+                rollover: .default,
+                calendar: .newYork,
+                asOf: now
+            ),
+            1
+        )
+    }
+
+    /// A started-and-stopped-instantly timer is not a day's work.
+    func testAZeroLengthSessionDoesNotMakeItsDayATrackedDay() {
+        let sessions = [
+            closed(clientWork, from: at(2025, 9, 3, 9), to: at(2025, 9, 3, 9)),
+            closed(clientWork, from: at(2025, 9, 4, 9), to: at(2025, 9, 4, 10)),
+        ]
+
+        // 1h over one tracked day, not over two.
+        XCTAssertEqual(snapshot(sessions).averages[0].week, 3600, accuracy: 0.5)
+    }
+
+    /// The 8th of March 2026 is 23 hours long in New York. Bucketing by
+    /// tracking day rather than by 86400 keeps it a day like any other.
+    func testASpringForwardDayIsOneTrackedDayLikeAnyOther() {
+        let sessions = [
+            closed(clientWork, from: at(2026, 3, 7, 10), to: at(2026, 3, 7, 11)),
+            closed(clientWork, from: at(2026, 3, 8, 10), to: at(2026, 3, 8, 11)),
+            closed(clientWork, from: at(2026, 3, 9, 10), to: at(2026, 3, 9, 11)),
+        ]
+        let now = at(2026, 3, 9, 12)
+
+        let range = ReviewStats.allTimeRange(
+            of: sessions,
+            endingAt: TrackingDay.start(containing: now, rollover: .default, calendar: .newYork),
+            rollover: .default,
+            calendar: .newYork
+        )
+
+        XCTAssertEqual(
+            ReviewStats.trackedDayCount(
+                of: sessions,
+                in: range,
+                rollover: .default,
+                calendar: .newYork,
+                asOf: now
+            ),
+            3
+        )
+        XCTAssertEqual(snapshot(sessions, now: now).averages[0].allTime, 3600, accuracy: 0.5)
+    }
+
+    /// The three scopes are fixed, so the table is the one thing in the window
+    /// that does not move when the period control does.
+    func testTheAveragesDoNotFollowThePeriodControl() {
+        let sessions = [
+            closed(clientWork, from: at(2025, 9, 2, 9), to: at(2025, 9, 2, 11)),
+            closed(sideProject, from: at(2025, 9, 4, 9), to: at(2025, 9, 4, 10)),
+        ]
+
+        XCTAssertEqual(snapshot(sessions, period: .day).averages, snapshot(sessions, period: .month).averages)
+        XCTAssertEqual(snapshot(sessions, period: .week).averages, snapshot(sessions, period: .month).averages)
+    }
+
+    /// A `Range` with its bounds the wrong way round traps, so a session dated
+    /// into the future by a clock jump must not be allowed to build one.
+    func testASessionDatedIntoTheFutureCannotInvertTheAllTimeRange() {
+        let today = at(2025, 9, 4, 4)
+        let sessions = [closed(clientWork, from: at(2026, 1, 1, 9), to: at(2026, 1, 1, 10))]
+
+        let range = ReviewStats.allTimeRange(
+            of: sessions,
+            endingAt: today,
+            rollover: .default,
+            calendar: .newYork
+        )
+
+        XCTAssertEqual(range.lowerBound, today)
+        XCTAssertTrue(range.lowerBound <= range.upperBound)
+    }
+
     // MARK: - Daily series
 
     func testTheDailySeriesIsSevenDaysForDayAndWeekAndThirtyForMonth() {
@@ -210,6 +391,29 @@ final class ReviewStatsTests: XCTestCase {
         XCTAssertEqual(daily.first?.dayStart, at(2025, 8, 29, 4))
     }
 
+    /// The dashed rule across the chart: the mean of the bars that have
+    /// something in them, which is the same measure the averages table uses.
+    func testTheChartsAverageIsTheMeanOfTheDaysWithTimeOnThem() {
+        let sessions = [
+            closed(clientWork, from: at(2025, 9, 1, 9), to: at(2025, 9, 1, 13)),
+            closed(clientWork, from: at(2025, 9, 3, 9), to: at(2025, 9, 3, 11)),
+            closed(clientWork, from: at(2025, 9, 4, 9), to: at(2025, 9, 4, 12)),
+        ]
+
+        let result = snapshot(sessions, period: .week)
+
+        XCTAssertEqual(result.daily.count, 7)
+        // 9h over the 3 days carrying it; the 4 empty days are not in it.
+        XCTAssertEqual(result.dailyAverageSeconds, 3 * 3600, accuracy: 0.5)
+    }
+
+    /// Nothing to average means no rule to draw, not a rule at zero.
+    func testTheChartsAverageIsZeroWhenTheWindowIsEmpty() {
+        let sessions = [closed(clientWork, from: at(2025, 3, 1, 9), to: at(2025, 3, 1, 10))]
+
+        XCTAssertEqual(snapshot(sessions).dailyAverageSeconds, 0)
+    }
+
     // MARK: - Insights
 
     func testEveryInsightAppearsWhenThereIsSomethingToSay() {
@@ -229,8 +433,8 @@ final class ReviewStatsTests: XCTestCase {
             insights,
             [
                 "Busiest day (last 7 days): Mon Sep 1, 4h 12m",
-                // (4h12m + 1h + 1h30m + 1h) / 4 active days.
-                "Average on tracked days (last 7 days): 1h 55m",
+                // The average across those days is the chart's dashed rule now,
+                // not a line here.
                 "4-day streak",
                 // The longest single session in the week, not the busiest day.
                 "Longest session (this week): Client Work, 4h 12m",
